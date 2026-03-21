@@ -80,6 +80,19 @@ func TestScanBytes_IgnoresFE0FAfterEmoji(t *testing.T) {
 	assert.Nil(t, result, "FE0F after emoji base characters should not be flagged")
 }
 
+func TestScanBytes_IgnoresFE0FAfterInfoAndWastebasket(t *testing.T) {
+	// Real-world case: clash-verge-rev uses ℹ️ (U+2139+FE0F) and 🗑️ (U+1F5D1+FE0F)
+	// in workflow echo statements. These must not be flagged.
+	data := []byte("run: |\n" +
+		"  echo \"\xe2\x84\xb9\xef\xb8\x8f  No assets found\"\n" + // ℹ️ (U+2139+FE0F)
+		"  echo \"\xf0\x9f\x97\x91\xef\xb8\x8f  Assets to delete:\"\n" + // 🗑️ (U+1F5D1+FE0F)
+		"  echo \"\xe2\x84\xb9\xef\xb8\x8f  No old assets\"\n" + // ℹ️
+		"  echo \"\xf0\x9f\x97\x91\xef\xb8\x8f  Deleting old assets\"\n") // 🗑️
+
+	result := scanBytesForSuspiciousUnicode(data, 1)
+	assert.Nil(t, result, "FE0F after ℹ and 🗑 should not be flagged")
+}
+
 func TestScanBytes_FlagsFE0FWithoutEmoji(t *testing.T) {
 	// U+FE0F NOT preceded by an emoji base should still be flagged as suspicious.
 	// 3× FE0F after ASCII 'a' (not an emoji base).

@@ -88,6 +88,9 @@ func isEmojiBase(r rune) bool {
 	// Misc Technical (e.g., ⌚ ⌛ ⏩ ⏰)
 	case r >= 0x2300 && r <= 0x23FF:
 		return true
+	// Letterlike Symbols (e.g., ℹ️)
+	case r >= 0x2100 && r <= 0x214F:
+		return true
 	// Enclosed Alphanumerics (e.g., Ⓜ)
 	case r >= 0x2460 && r <= 0x24FF:
 		return true
@@ -99,11 +102,8 @@ func isEmojiBase(r rune) bool {
 	// CJK Symbols (e.g., ㊗ ㊙)
 	case r >= 0x3000 && r <= 0x303F:
 		return true
-	// Emoticons
-	case r >= 0x1F600 && r <= 0x1F64F:
-		return true
-	// Misc Symbols and Pictographs (e.g., 🌀-🏿)
-	case r >= 0x1F300 && r <= 0x1F3FF:
+	// SMP Emoji: Misc Symbols/Pictographs through Emoticons (🌀-🏿, 🐀-🗿, 🙀-🙏)
+	case r >= 0x1F300 && r <= 0x1F64F:
 		return true
 	// Transport and Map Symbols
 	case r >= 0x1F680 && r <= 0x1F6FF:
