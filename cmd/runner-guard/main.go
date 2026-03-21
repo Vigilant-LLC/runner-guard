@@ -29,7 +29,7 @@ import (
 //
 //	go build -ldflags "-X main.version=1.0.0 -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 var (
-	version = "2.2.1"
+	version = "2.3.0"
 	commit  = "dev"
 	date    = "unknown"
 )

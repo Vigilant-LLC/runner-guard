@@ -1128,11 +1128,52 @@ var payloadPatterns = []struct {
 	pattern *regexp.Regexp
 	desc    string
 }{
+	// Existing decode-and-execute patterns
 	{regexp.MustCompile(`(?i)eval\s*\(\s*(bytes\.fromhex|bytearray|codecs\.decode|base64\.b64decode)`), "Python eval+decode chain"},
 	{regexp.MustCompile(`(?i)\bbase64\s+(--decode|-d)\b.*\|\s*(ba)?sh`), "base64 decode piped to shell"},
 	{regexp.MustCompile(`(?i)String\.fromCharCode\s*\(.*\beval\b`), "JS eval of decoded characters"},
 	{regexp.MustCompile(`(?i)Buffer\.from\s*\(.*'(hex|base64)'`), "Node.js Buffer decode pattern"},
 	{regexp.MustCompile(`(?i)codecs\.decode\s*\(.*'unicode.escape'`), "Python Unicode escape decode"},
+
+	// Reverse shell patterns
+	{regexp.MustCompile(`(?i)bash\s+-i\s+>&\s*/dev/tcp/`), "Bash reverse shell via /dev/tcp"},
+	{regexp.MustCompile(`(?i)\bnc\s+(-e|--exec)\s+`), "Netcat reverse shell"},
+	{regexp.MustCompile(`(?i)\bmkfifo\b.*\b(nc|ncat|netcat)\b`), "Named pipe reverse shell"},
+	{regexp.MustCompile(`(?i)\bsocat\b.*\bexec\b`), "Socat reverse shell"},
+
+	// Curl/wget piped to shell
+	{regexp.MustCompile(`(?i)\bcurl\b[^|;]*\|\s*(ba)?sh`), "curl piped to shell"},
+	{regexp.MustCompile(`(?i)\bwget\b[^|;]*-O\s*-[^|;]*\|\s*(ba)?sh`), "wget piped to shell"},
+	{regexp.MustCompile(`(?i)\bcurl\b[^|;]*\|\s*python`), "curl piped to Python interpreter"},
+	{regexp.MustCompile(`(?i)\bwget\b[^|;]*\|\s*python`), "wget piped to Python interpreter"},
+
+	// PowerShell encoded/obfuscated commands
+	{regexp.MustCompile(`(?i)powershell\b.*-(enc|encodedcommand)\s+`), "PowerShell encoded command"},
+	{regexp.MustCompile(`(?i)\bpwsh\b.*-(enc|encodedcommand)\s+`), "pwsh encoded command"},
+	{regexp.MustCompile(`(?i)\bIEX\s*\(\s*(New-Object|Invoke-WebRequest|iwr|wget)`), "PowerShell download-and-execute"},
+
+	// Python exec with compression/encoding
+	{regexp.MustCompile(`(?i)\bexec\s*\(\s*compile\s*\(`), "Python exec(compile(...))"},
+	{regexp.MustCompile(`(?i)\bexec\s*\(\s*zlib\.decompress\s*\(`), "Python exec(zlib.decompress(...))"},
+	{regexp.MustCompile(`(?i)__import__\s*\(\s*['"]zlib['"]\s*\)\.decompress`), "Python dynamic zlib import and decompress"},
+	{regexp.MustCompile(`(?i)\bexec\s*\(\s*marshal\.loads\s*\(`), "Python exec(marshal.loads(...))"},
+
+	// Environment variable exfiltration
+	{regexp.MustCompile(`(?i)\b(env|printenv|set)\b[^|;]*\|\s*(curl|wget|nc|ncat)\b`), "Environment variable exfiltration"},
+	{regexp.MustCompile(`(?i)\b(GITHUB_TOKEN|ACTIONS_RUNTIME_TOKEN|NPM_TOKEN)\b.*\b(curl|wget|nc)\b`), "Secret token exfiltration attempt"},
+
+	// Hex decode execution
+	{regexp.MustCompile(`(?i)\bxxd\s+-r\s+-p\b.*\|\s*(ba)?sh`), "Hex decode piped to shell"},
+	{regexp.MustCompile(`(?i)\bprintf\b.*\\\\x[0-9a-f].*\|\s*(ba)?sh`), "Printf hex escape piped to shell"},
+	{regexp.MustCompile(`(?i)\bpython3?\s+-c\s+.*\\x[0-9a-f]`), "Python hex string execution"},
+
+	// Ruby/Perl eval patterns
+	{regexp.MustCompile(`(?i)\bruby\s+-e\s+.*\beval\b`), "Ruby eval execution"},
+	{regexp.MustCompile(`(?i)\bperl\s+-e\s+.*\beval\s+(pack|unpack)\b`), "Perl eval pack/unpack"},
+
+	// Suspicious file operations in CI
+	{regexp.MustCompile(`(?i)\bchmod\s+\+x\b.*(/tmp|/dev/shm|/var/tmp)`), "Executable staged in temp directory"},
+	{regexp.MustCompile(`(?i)\bcrontab\b.*-[li]?\s*<<`), "Crontab injection via heredoc"},
 }
 
 func (e *Engine) checkRGS018(wf *parser.Workflow) []Finding {

