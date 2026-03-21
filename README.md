@@ -16,6 +16,27 @@ The attack chain is straightforward: an attacker forks the target repository, mo
 
 ---
 
+## GlassWorm Supply Chain Attack Detection
+
+![GlassWorm Detection Demo](docs/glassworm-demo.gif)
+
+In March 2026, the GlassWorm campaign compromised 433+ components across GitHub, npm, and VS Code/OpenVSX by injecting invisible Unicode characters into source files. The attack uses variation selectors (U+FE00-FE0F), supplementary variation selectors (U+E0100-E01EF), and zero-width formatting characters to encode hidden payloads that are completely invisible in code editors, terminals, and GitHub's diff viewer. The decoded ZOMBI module performs credential harvesting (NPM tokens, GitHub PATs, git credentials), cryptocurrency wallet theft, SOCKS proxy deployment, and uses the Solana blockchain for command-and-control.
+
+Runner Guard detects GlassWorm and similar supply chain attacks at three levels:
+
+- **RGS-016** scans workflow YAML files at the byte level for invisible Unicode characters. Any match above the threshold indicates active compromise -- a steganographic payload is already embedded in your pipeline.
+
+- **RGS-017** extends the scan to files your workflows execute -- setup.py, package.json, Dockerfiles, Makefiles, shell scripts, and local action definitions. If `pip install .` runs setup.py and that file contains hidden Unicode, RGS-017 catches it.
+
+- **RGS-018** detects known GlassWorm IOCs (the `lzcdrtfxyqiplpd` marker variable, `~/init.json` persistence file, Solana C2 patterns) and dangerous eval+decode execution patterns (base64 decode piped to bash, Python eval of decoded bytes). IOC patterns are loaded from `signatures.yaml` and can be updated without recompiling.
+
+```bash
+# Run the GlassWorm detection demo
+runner-guard demo --scenario glassworm
+```
+
+---
+
 ## How It Works
 
 Runner Guard uses a four-stage analysis pipeline:
@@ -24,7 +45,7 @@ Runner Guard uses a four-stage analysis pipeline:
 
 2. **Source-to-Sink Tracker** -- Identifies attacker-controlled sources (`github.event.pull_request.head.sha`, `github.head_ref`, `github.event.comment.body`, `github.event.pull_request.title`, fork-checked-out file paths) and traces them through expression interpolations, environment variables, step outputs, and file artifacts to dangerous sinks (shell `run:` blocks, action `with:` inputs, network calls).
 
-3. **Rule Engine** -- Evaluates 12 detection rules (RGS-001 through RGS-012) against the parsed workflow and source-to-sink graph. Each rule defines source patterns, sink patterns, required context conditions (trigger type, permissions, checkout target), and severity. Rules are defined in YAML for easy extension.
+3. **Rule Engine** -- Evaluates 17 detection rules (RGS-001 through RGS-018) against the parsed workflow and source-to-sink graph. Each rule defines source patterns, sink patterns, required context conditions (trigger type, permissions, checkout target), and severity. Rules are defined in YAML for easy extension. Threat signatures (IOC patterns) are loaded from an updatable `signatures.yaml` file embedded in the binary.
 
 4. **Reporter** -- Outputs findings in multiple formats: human-readable console output with color and context, JSON for programmatic consumption, and SARIF for integration with GitHub Code Scanning, VS Code, and other SARIF-compatible tools.
 
@@ -32,7 +53,8 @@ Runner Guard uses a four-stage analysis pipeline:
 
 ## Features
 
-- **12 detection rules** covering fork checkout exploits, expression injection, secret exfiltration, unpinned actions, and AI config injection
+- **17 detection rules** covering fork checkout exploits, expression injection, secret exfiltration, unpinned actions, AI config injection, and supply chain steganography
+- **GlassWorm supply chain attack detection** -- Unicode steganography scanning, known IOC matching, and eval+decode payload pattern detection with updatable threat signatures
 - **AI config injection detection** across Claude, GitHub Copilot, Cursor, and MCP tooling -- the first scanner to cover this attack surface
 - **Source-to-sink vulnerability scanning** tracing attacker-controlled inputs through expressions, environment variables, and step outputs to dangerous sinks
 - **SARIF output** for native GitHub Code Scanning integration -- findings appear in the Security tab
@@ -176,6 +198,7 @@ runner-guard demo
 runner-guard demo --scenario fork-checkout
 runner-guard demo --scenario microsoft
 runner-guard demo --scenario ai-injection
+runner-guard demo --scenario glassworm
 
 # List available scenarios
 runner-guard demo --list
@@ -212,8 +235,15 @@ runner-guard baseline update
 | RGS-010 | AI Agent Config in Fork Checkout | High | CLAUDE.md or similar AI config loaded from fork-controlled checkout |
 | RGS-011 | MCP Config in Fork Checkout | High | .mcp.json or MCP config file read from fork-controlled checkout |
 | RGS-012 | Network Exfiltration in Privileged Context | Medium | Outbound HTTP request with secret data in privileged workflow context |
+| RGS-014 | Expression Injection via workflow_dispatch Input | High | `workflow_dispatch` input interpolated directly in shell `run:` block |
+| RGS-015 | Actions Runner Debug Logging Enabled | Medium | `ACTIONS_RUNNER_DEBUG` or `ACTIONS_STEP_DEBUG` enabled, exposing secrets in logs |
+| RGS-016 | Unicode Steganography in Workflow File | Critical | Invisible Unicode characters detected in workflow YAML -- active compromise indicator |
+| RGS-017 | Unicode Steganography in Referenced Script | High | Invisible Unicode in files executed by the workflow (setup.py, package.json, etc.) |
+| RGS-018 | Suspicious Payload Execution Pattern | High | Eval+decode chains, known malware IOCs, or C2 patterns in workflow `run:` blocks |
 
-**RGS-010** and **RGS-011** are unique to Runner Guard. No other CI/CD security scanner detects AI configuration injection attacks where an attacker modifies CLAUDE.md, .claude/settings.json, .mcp.json, or mcp-config.json in a fork pull request to hijack AI code review agents running in privileged CI contexts. These rules address a novel attack surface that emerged with the adoption of AI coding assistants in CI/CD pipelines.
+**RGS-010** and **RGS-011** are unique to Runner Guard. No other CI/CD security scanner detects AI configuration injection attacks where an attacker modifies CLAUDE.md, .claude/settings.json, .mcp.json, or mcp-config.json in a fork pull request to hijack AI code review agents running in privileged CI contexts.
+
+**RGS-016**, **RGS-017**, and **RGS-018** detect the GlassWorm supply chain attack and related steganographic techniques. RGS-016 performs byte-level scanning of workflow files for invisible Unicode characters (variation selectors, zero-width chars, tag characters) used to encode hidden payloads. RGS-017 extends this analysis to files referenced and executed by workflows (setup.py, package.json, Dockerfiles, shell scripts). RGS-018 matches known IOC patterns from the GlassWorm campaign and detects dangerous eval+decode execution patterns. Threat signatures are loaded from an embedded `signatures.yaml` that can be updated without code changes.
 
 ---
 
@@ -259,6 +289,8 @@ Runner Guard welcomes contributions, especially new detection rules. To add a ru
 3. Add a test case in `internal/taint/` with a sample vulnerable workflow. (The `taint` package name is an industry-standard term used internally.)
 4. Add a demo workflow in `demo/vulnerable/workflows/` if the rule covers a distinct attack scenario.
 5. Submit a pull request with a description of the real-world attack pattern the rule detects.
+
+To add threat signatures (IOC patterns for RGS-018) without writing Go code, edit `rules/signatures.yaml` and rebuild. Each signature needs an ID, regex pattern, threat actor name, and severity.
 
 Please also report false positives. Accuracy is critical for a security tool -- a scanner that cries wolf gets disabled.
 

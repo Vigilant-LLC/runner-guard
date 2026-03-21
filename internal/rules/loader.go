@@ -41,6 +41,13 @@ func LoadRules(fsys fs.FS) (map[string]*RuleMetadata, error) {
 			return nil
 		}
 
+		// Only load rule definition files (RGS-*.yaml). Non-rule YAML files
+		// like signatures.yaml are loaded separately by their own parsers.
+		base := strings.ToUpper(filepath.Base(path))
+		if !strings.HasPrefix(base, "RGS-") {
+			return nil
+		}
+
 		data, err := fs.ReadFile(fsys, path)
 		if err != nil {
 			return fmt.Errorf("reading rule file %s: %w", path, err)

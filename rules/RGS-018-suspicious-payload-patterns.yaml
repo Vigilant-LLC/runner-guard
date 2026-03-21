@@ -1,0 +1,64 @@
+id: RGS-018
+name: "Suspicious Payload Execution Pattern"
+severity: high
+description: >
+  A workflow `run:` block contains code patterns associated with obfuscated payload
+  execution or known indicators of compromise (IOCs) from active supply chain attack
+  campaigns. This includes eval+decode chains (e.g., `eval(base64.b64decode(...))`,
+  `base64 --decode | bash`), known malware marker variables, persistence file paths,
+  and C2 communication patterns. These patterns are loaded from Runner Guard's threat
+  signature database, which can be updated independently of the scanner binary. A match
+  against a known IOC indicates active compromise; a match against a dangerous execution
+  pattern indicates susceptibility to this class of supply chain attack.
+
+tags:
+  - supply-chain
+  - obfuscation
+  - eval-injection
+  - glassworm
+  - ioc
+  - payload-execution
+
+attack_scenario: >
+  An attacker modifies a workflow to include an obfuscated payload in a `run:` block.
+  The payload uses base64 encoding, hex encoding, or Unicode escape sequences to hide
+  its true purpose from code review. At runtime, the encoded payload is decoded and
+  passed to eval() or piped to a shell interpreter, executing arbitrary code with full
+  runner privileges. In the GlassWorm campaign, the decoded ZOMBI module performed
+  credential harvesting (NPM tokens, GitHub PATs, git credentials), cryptocurrency
+  wallet theft (49 wallet extensions), deployed SOCKS proxies, installed hidden VNC
+  servers, and used a Solana blockchain dead-drop for command-and-control — all from
+  a single eval() call on decoded content. Even when not associated with a known
+  campaign, eval+decode patterns in CI/CD scripts represent a dangerous blind spot
+  where arbitrary code can be injected without visible changes to the workflow.
+
+real_world_incident: >
+  The GlassWorm ZOMBI module (active since October 2025) uses three layers of
+  obfuscation — base64 decoding, zlib decompression, and XOR encryption (key: 134) —
+  before passing the result to eval(). The module queries the Solana blockchain every
+  5 seconds for updated C2 URLs via transaction memo fields, with 50+ transactions
+  recorded between November 2025 and March 2026. Known IOCs include the marker
+  variable `lzcdrtfxyqiplpd`, the persistence file `~/init.json`, and hidden Node.js
+  installations at `~/node-v22*`.
+
+fix: |
+  **If a known IOC was matched, this indicates active compromise:**
+
+  1. **IMMEDIATELY rotate all repository secrets and tokens**
+  2. **Revoke and regenerate** all GitHub PATs for repository collaborators
+  3. **Audit git history** with `git log --all --oneline` and check for force-pushes
+  4. **Check self-hosted runners** for `~/init.json` and `~/node-v22*`
+  5. **Report to GitHub**: https://github.com/contact/report-abuse
+
+  **If a dangerous execution pattern was matched (eval+decode):**
+
+  1. **Replace eval+decode** with explicit, readable code
+  2. If decoding is necessary, decode to a file and review before execution
+  3. **Never pass untrusted input** to eval() in any language
+  4. Use environment variables instead of inline interpolation for dynamic values
+  5. Consider whether the encoded content could be committed in plain text instead
+
+references:
+  - "https://www.aikido.dev/blog/glassworm-returns-unicode-attack-github-npm-vscode"
+  - "https://thehackernews.com/2026/03/glassworm-attack-uses-stolen-github.html"
+  - "https://securityonline.info/glassworm-supply-chain-worm-uses-invisible-unicode-and-solana-blockchain-for-stealth-c2/"

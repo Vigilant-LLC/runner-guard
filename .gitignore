@@ -50,3 +50,6 @@ scan-results/
 # Private campaign tooling
 docs/campaign-plan.md
 pipeline/
+
+# Internal planning documents
+plans/

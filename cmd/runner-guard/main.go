@@ -77,6 +77,17 @@ var scenarios = []demoScenario{
 			"in a privileged pull_request_target context.",
 		Context: "This demonstrates how AI config files (CLAUDE.md) can be weaponized through fork PRs.",
 	},
+	{
+		Key:  "glassworm",
+		File: "glassworm-steganography.yml",
+		Title: "GlassWorm Supply Chain Attack (Unicode Steganography + IOC Detection)",
+		Description: "This workflow contains invisible Unicode characters consistent\n" +
+			"with GlassWorm-style steganographic payload encoding, known\n" +
+			"malware IOC variables, and dangerous eval+decode patterns.\n" +
+			"These techniques were used in the GlassWorm campaign (2025-2026)\n" +
+			"to compromise 433+ GitHub, npm, and VSCode components.",
+		Context: "This replicates the GlassWorm supply chain attack pattern using invisible Unicode steganography and known IOCs.",
+	},
 }
 
 // ---------------------------------------------------------------------------
@@ -260,7 +271,7 @@ func newDemoCmd() *cobra.Command {
 			// Determine which scenarios to run.
 			selected := filterScenarios(scenario)
 			if len(selected) == 0 {
-				return fmt.Errorf("unknown scenario %q; options: all, fork-checkout, microsoft, ai-injection", scenario)
+				return fmt.Errorf("unknown scenario %q; options: all, fork-checkout, microsoft, ai-injection, glassworm", scenario)
 			}
 
 			for _, sc := range selected {
@@ -303,7 +314,7 @@ func newDemoCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&scenario, "scenario", "all", "Demo scenario: all, fork-checkout, microsoft, ai-injection")
+	cmd.Flags().StringVar(&scenario, "scenario", "all", "Demo scenario: all, fork-checkout, microsoft, ai-injection, glassworm")
 
 	return cmd
 }
@@ -417,11 +428,13 @@ func loadDemoFiles(demoFS fs.FS, sc demoScenario) (map[string][]byte, error) {
 // to the scenario's context string. This ensures that any rule that fires on
 // the demo file will carry the contextual explanation.
 func buildDemoContexts(sc demoScenario) map[string]string {
-	// All 12 rules could potentially fire on a demo file.
+	// All rules could potentially fire on a demo file.
 	ruleIDs := []string{
 		"RGS-001", "RGS-002", "RGS-003", "RGS-004",
 		"RGS-005", "RGS-006", "RGS-007", "RGS-008",
 		"RGS-009", "RGS-010", "RGS-011", "RGS-012",
+		"RGS-014", "RGS-015", "RGS-016", "RGS-017",
+		"RGS-018",
 	}
 
 	contexts := make(map[string]string, len(ruleIDs))

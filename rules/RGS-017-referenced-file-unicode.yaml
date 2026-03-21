@@ -1,0 +1,64 @@
+id: RGS-017
+name: "Unicode Steganography in Referenced Script"
+severity: high
+description: >
+  A file referenced and executed by a GitHub Actions workflow contains invisible Unicode
+  characters consistent with steganographic payload encoding. The workflow's `run:` block
+  invokes a command (such as `pip install .`, `npm install`, `python setup.py`, `make`,
+  or `docker build`) that will execute the referenced file. If the file contains hidden
+  Unicode payloads, the malicious code will run with the full privileges of the GitHub
+  Actions runner — including access to secrets, tokens, and network resources. This
+  detection covers the primary attack vector of the GlassWorm campaign, which injected
+  invisible payloads into setup.py, main.py, app.py, and package.json files.
+
+tags:
+  - supply-chain
+  - steganography
+  - unicode
+  - glassworm
+  - active-compromise
+  - referenced-files
+
+attack_scenario: >
+  An attacker uses stolen GitHub credentials to force-push a commit that modifies
+  setup.py in a Python project. The commit appears to be a minor version bump, but
+  invisible Unicode variation selectors (U+E0100 range) encode a hidden payload
+  appended to the file. When the project's CI workflow runs `pip install .`, Python
+  executes setup.py — including the decoded malicious payload. The payload exfiltrates
+  environment variables (GITHUB_TOKEN, NPM_TOKEN, any configured secrets), installs
+  a SOCKS proxy for persistent access, and uses the stolen tokens to propagate the
+  same attack to other repositories the developer maintains. The same technique
+  applies to package.json install hooks, Makefiles, Dockerfiles, and shell scripts
+  referenced by workflows.
+
+real_world_incident: >
+  In March 2026, the GlassWorm campaign compromised hundreds of Python repositories
+  by force-pushing invisible Unicode payloads into setup.py and main.py files. The
+  attack specifically targeted Django apps, ML research code, Streamlit dashboards,
+  and PyPI packages. The three-layer payload obfuscation (base64 → zlib → XOR-134)
+  made the decoded content equally difficult to analyze even after the invisible
+  characters were discovered.
+
+fix: |
+  **This finding indicates potential active compromise of a file your workflow executes.**
+
+  **Immediate response:**
+
+  1. **Inspect the referenced file** with `cat -v <file>` or a hex editor
+  2. **Remove invisible Unicode characters** and verify the file's actual content
+  3. **Check git blame** to identify when the invisible characters were introduced
+  4. **Review git reflog** for force-push events that may have rewritten history
+  5. **Rotate all secrets and tokens** that the workflow has access to
+  6. **Check downstream artifacts** — if this workflow publishes packages, verify no
+     compromised versions were released
+
+  **Prevention:**
+
+  - Pin dependencies to specific commit SHAs rather than mutable tags
+  - Enable branch protection with required reviews for changes to build files
+  - Add a pre-commit hook scanning for invisible Unicode in source files
+  - Use Runner Guard in CI to detect steganographic payloads before execution
+
+references:
+  - "https://www.aikido.dev/blog/glassworm-returns-unicode-attack-github-npm-vscode"
+  - "https://thehackernews.com/2026/03/glassworm-attack-uses-stolen-github.html"

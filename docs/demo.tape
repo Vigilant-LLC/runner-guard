@@ -1,26 +1,28 @@
 Output docs/demo.gif
 Set Shell "bash"
 Set Width 1100
-Set Height 750
-Set FontSize 18
+Set Height 850
+Set FontSize 16
 Set Theme "Dracula"
 Set Padding 30
 Set Framerate 24
-Set TypingSpeed 50ms
+Set TypingSpeed 80ms
 
 Env PS1 "$ "
 
-# Show the demo scan
-Type "runner-guard demo"
-Sleep 1s
-Enter
-Sleep 8s
+Sleep 2s
 
-# Quick pause at the end so they see the summary
-Sleep 3s
+# Show the full demo scan (all scenarios)
+Type "runner-guard demo"
+Sleep 1.5s
+Enter
+Sleep 20s
+
+# Pause at the end so viewer can read the summary
+Sleep 5s
 
 # Now show scanning a clean repo
 Type "runner-guard scan ."
-Sleep 1s
+Sleep 1.5s
 Enter
-Sleep 4s
+Sleep 5s

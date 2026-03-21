@@ -1,0 +1,57 @@
+# Runner Guard Threat Signatures
+# Update this file to add detection for new supply chain attack IOCs
+# without recompiling the binary. Rebuild after editing.
+#
+# Each signature has:
+#   id:           Unique identifier for the signature
+#   threat_actor: Name of the threat actor or campaign
+#   type:         Category (ioc-variable, ioc-filepath, ioc-behavior)
+#   pattern:      Go-compatible regex pattern to match in run blocks
+#   description:  Human-readable description of what this detects
+#   severity:     high or critical
+#   first_seen:   Date the IOC was first observed (YYYY-MM format)
+#   references:   List of URLs for more information
+
+version: 1
+last_updated: "2026-03-21"
+
+signatures:
+  - id: glassworm-marker-variable
+    threat_actor: GlassWorm
+    type: ioc-variable
+    pattern: "\\blzcdrtfxyqiplpd\\b"
+    description: "Known GlassWorm malware marker variable"
+    severity: high
+    first_seen: "2025-10"
+    references:
+      - "https://www.aikido.dev/blog/glassworm-returns-unicode-attack-github-npm-vscode"
+
+  - id: glassworm-persistence-file
+    threat_actor: GlassWorm
+    type: ioc-filepath
+    pattern: "~/init\\.json"
+    description: "GlassWorm persistence file path"
+    severity: high
+    first_seen: "2025-10"
+    references:
+      - "https://thehackernews.com/2026/03/glassworm-attack-uses-stolen-github.html"
+
+  - id: glassworm-hidden-node
+    threat_actor: GlassWorm
+    type: ioc-filepath
+    pattern: "~/node-v22"
+    description: "GlassWorm hidden Node.js installation path"
+    severity: high
+    first_seen: "2025-10"
+    references:
+      - "https://thehackernews.com/2026/03/glassworm-attack-uses-stolen-github.html"
+
+  - id: glassworm-solana-c2
+    threat_actor: GlassWorm
+    type: ioc-behavior
+    pattern: "(?i)solana.*memo|memo.*solana"
+    description: "Potential Solana blockchain C2 communication pattern"
+    severity: high
+    first_seen: "2025-11"
+    references:
+      - "https://securityonline.info/glassworm-supply-chain-worm-uses-invisible-unicode-and-solana-blockchain-for-stealth-c2/"

@@ -1,0 +1,64 @@
+id: RGS-016
+name: "Unicode Steganography in Workflow File"
+severity: critical
+description: >
+  The workflow file contains invisible Unicode characters in ranges commonly used
+  for steganographic payloads. These characters render as zero-width whitespace in
+  code editors, terminals, and GitHub's diff viewer, making them invisible to human
+  code review. Attackers embed hidden payloads using variation selectors (U+FE00-FE0F),
+  supplementary variation selectors (U+E0100-E01EF), tag characters (U+E0001-E007F),
+  and zero-width formatting characters (U+200B-200F). This technique was prominently
+  used by the GlassWorm supply chain attack campaign (active since October 2025) to
+  compromise 433+ components across GitHub, npm, and VS Code/OpenVSX registries.
+
+tags:
+  - supply-chain
+  - steganography
+  - unicode
+  - glassworm
+  - active-compromise
+
+attack_scenario: >
+  An attacker compromises a developer's credentials (via a malicious VS Code extension,
+  phishing, or token theft) and uses them to force-push a commit to a workflow file.
+  The commit appears to contain minor formatting changes, but invisible Unicode variation
+  selectors encode a hidden JavaScript or Python payload within the YAML. When the workflow
+  runs, the invisible characters are decoded at runtime via eval() and the payload executes
+  with full runner privileges — exfiltrating GITHUB_TOKEN, NPM tokens, and other secrets.
+  The stolen credentials are then used to propagate the attack to other repositories,
+  creating a self-replicating worm. Because the malicious characters are invisible in
+  every standard review tool (editors, GitHub UI, git diff), the compromise persists
+  undetected until a byte-level scanner like Runner Guard flags it.
+
+real_world_incident: >
+  The GlassWorm campaign (October 2025 – March 2026) used invisible Unicode variation
+  selectors to hide malicious payloads in 433+ GitHub repositories, npm packages, and
+  VS Code extensions. The attack used stolen credentials to force-push poisoned commits
+  that preserved original author metadata, making them appear legitimate. The ZOMBI
+  module harvested developer credentials for exponential self-propagation, infecting
+  an estimated 35,000+ developer systems. Security researchers at Aikido, Socket, and
+  StepSecurity coordinated disclosure and detection efforts.
+
+fix: |
+  **This finding indicates potential active compromise, not just a vulnerability.**
+
+  **Immediate response:**
+
+  1. **Inspect the file** with `cat -v <file>` or a hex editor to reveal hidden characters
+  2. **Remove all invisible Unicode characters** from the workflow file
+  3. **Verify file integrity** — ensure the visible content matches what your editor shows
+  4. **Check git history** for suspicious force-push events: `git reflog` and `git log --all`
+  5. **Rotate all secrets** — GITHUB_TOKEN, PATs, NPM tokens, and any configured repository secrets
+  6. **Audit collaborator access** — check for unauthorized token usage in GitHub audit logs
+
+  **Prevention:**
+
+  - Enable branch protection rules requiring PR reviews for workflow changes
+  - Use `git config --global core.quotepath false` to help surface unusual characters
+  - Add a pre-commit hook that scans for invisible Unicode (e.g., `anti-trojan-source`)
+  - Run Runner Guard in CI to catch steganographic payloads before they execute
+
+references:
+  - "https://www.aikido.dev/blog/glassworm-returns-unicode-attack-github-npm-vscode"
+  - "https://thehackernews.com/2026/03/glassworm-attack-uses-stolen-github.html"
+  - "https://www.stepsecurity.io/blog/forcememo-hundreds-of-github-python-repos-compromised-via-account-takeover-and-force-push"

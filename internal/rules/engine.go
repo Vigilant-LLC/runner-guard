@@ -1,13 +1,17 @@
 package rules
 
 import (
+	"fmt"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/Vigilant-LLC/runner-guard/internal/parser"
 	"github.com/Vigilant-LLC/runner-guard/internal/taint"
+	"gopkg.in/yaml.v3"
 )
 
 // Finding represents a single security finding produced by the rule engine.
@@ -27,11 +31,32 @@ type Finding struct {
 	DemoContext     string // populated only in demo mode
 }
 
+// ThreatSignature represents a single IOC pattern loaded from signatures.yaml.
+type ThreatSignature struct {
+	ID          string   `yaml:"id"`
+	ThreatActor string   `yaml:"threat_actor"`
+	Type        string   `yaml:"type"`
+	Pattern     string   `yaml:"pattern"`
+	Description string   `yaml:"description"`
+	Severity    string   `yaml:"severity"`
+	FirstSeen   string   `yaml:"first_seen"`
+	References  []string `yaml:"references"`
+	compiled    *regexp.Regexp
+}
+
+// SignaturesFile is the top-level structure of signatures.yaml.
+type SignaturesFile struct {
+	Version     int                `yaml:"version"`
+	LastUpdated string             `yaml:"last_updated"`
+	Signatures  []*ThreatSignature `yaml:"signatures"`
+}
+
 // Engine is the rule evaluation engine that loads rule metadata and runs
 // all registered rule checkers against parsed workflows.
 type Engine struct {
-	rules    map[string]*RuleMetadata
-	checkers map[string]RuleChecker
+	rules      map[string]*RuleMetadata
+	checkers   map[string]RuleChecker
+	signatures []*ThreatSignature // loaded from signatures.yaml
 }
 
 // RuleChecker is a function that evaluates a single parsed workflow and returns
@@ -46,13 +71,44 @@ func NewEngine(fsys fs.FS) (*Engine, error) {
 		return nil, err
 	}
 
+	sigs, _ := loadSignatures(fsys)
+
 	e := &Engine{
-		rules:    meta,
-		checkers: make(map[string]RuleChecker),
+		rules:      meta,
+		checkers:   make(map[string]RuleChecker),
+		signatures: sigs,
 	}
 
 	e.registerCheckers()
 	return e, nil
+}
+
+// loadSignatures reads and compiles threat signatures from signatures.yaml.
+func loadSignatures(fsys fs.FS) ([]*ThreatSignature, error) {
+	data, err := fs.ReadFile(fsys, "rules/signatures.yaml")
+	if err != nil {
+		return nil, err
+	}
+
+	var sf SignaturesFile
+	if err := yaml.Unmarshal(data, &sf); err != nil {
+		return nil, fmt.Errorf("parsing signatures.yaml: %w", err)
+	}
+
+	var valid []*ThreatSignature
+	for _, sig := range sf.Signatures {
+		if sig.Pattern == "" {
+			continue
+		}
+		compiled, err := regexp.Compile(sig.Pattern)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: invalid signature pattern %q (%s): %v\n", sig.ID, sig.Pattern, err)
+			continue
+		}
+		sig.compiled = compiled
+		valid = append(valid, sig)
+	}
+	return valid, nil
 }
 
 // NewEngineWithDefaults creates an Engine with default (empty) metadata for all rules.
@@ -81,6 +137,9 @@ func (e *Engine) registerCheckers() {
 	e.checkers["RGS-012"] = e.checkRGS012
 	e.checkers["RGS-014"] = e.checkRGS014
 	e.checkers["RGS-015"] = e.checkRGS015
+	e.checkers["RGS-016"] = e.checkRGS016
+	e.checkers["RGS-017"] = e.checkRGS017
+	e.checkers["RGS-018"] = e.checkRGS018
 }
 
 // Evaluate runs all registered checkers against all provided workflows,
@@ -339,6 +398,9 @@ func defaultRuleMetadata() map[string]*RuleMetadata {
 		"RGS-012": {ID: "RGS-012", Name: "External Network Access with Secrets Context", Severity: "medium"},
 		"RGS-014": {ID: "RGS-014", Name: "Expression Injection via workflow_dispatch Input", Severity: "high"},
 		"RGS-015": {ID: "RGS-015", Name: "Actions Runner Debug Logging Enabled", Severity: "medium"},
+		"RGS-016": {ID: "RGS-016", Name: "Unicode Steganography in Workflow File", Severity: "critical"},
+		"RGS-017": {ID: "RGS-017", Name: "Unicode Steganography in Referenced Script", Severity: "high"},
+		"RGS-018": {ID: "RGS-018", Name: "Suspicious Payload Execution Pattern", Severity: "high"},
 	}
 }
 
@@ -937,3 +999,120 @@ func truncate(s string, maxLen int) string {
 	}
 	return s
 }
+
+// ---------------------------------------------------------------------------
+// RGS-016: Unicode Steganography in Workflow File
+// ---------------------------------------------------------------------------
+
+func (e *Engine) checkRGS016(wf *parser.Workflow) []Finding {
+	data := wf.RawBytes
+	if len(data) == 0 {
+		return nil
+	}
+
+	result := scanBytesForSuspiciousUnicode(data, 3)
+	if result == nil {
+		return nil
+	}
+
+	evidence := formatScanResult(result, " in workflow file")
+
+	f := e.makeFinding("RGS-016", wf, "", nil, evidence)
+	f.LineNumber = result.FirstLine
+	return []Finding{f}
+}
+
+// ---------------------------------------------------------------------------
+// RGS-017: Unicode Steganography in Referenced Script
+// ---------------------------------------------------------------------------
+
+func (e *Engine) checkRGS017(wf *parser.Workflow) []Finding {
+	repoRoot := repoRootFromWorkflowPath(wf.Path)
+	if repoRoot == "" {
+		return nil
+	}
+
+	refFiles := resolveReferencedFiles(wf, repoRoot)
+	if len(refFiles) == 0 {
+		return nil
+	}
+
+	var findings []Finding
+	for _, absPath := range refFiles {
+		data, err := os.ReadFile(absPath)
+		if err != nil {
+			continue
+		}
+
+		result := scanBytesForSuspiciousUnicode(data, 3)
+		if result == nil {
+			continue
+		}
+
+		// Compute relative path for display.
+		relPath := absPath
+		if rel, err := filepath.Rel(repoRoot, absPath); err == nil {
+			relPath = rel
+		}
+
+		evidence := formatScanResult(result,
+			fmt.Sprintf(" in referenced file '%s'", relPath))
+
+		f := e.makeFinding("RGS-017", wf, "", nil, evidence)
+		f.LineNumber = result.FirstLine
+		findings = append(findings, f)
+	}
+
+	return findings
+}
+
+// ---------------------------------------------------------------------------
+// RGS-018: Suspicious Payload Execution Pattern
+// ---------------------------------------------------------------------------
+
+// Built-in payload patterns (technique-based, stable across threat actors).
+var payloadPatterns = []struct {
+	pattern *regexp.Regexp
+	desc    string
+}{
+	{regexp.MustCompile(`(?i)eval\s*\(\s*(bytes\.fromhex|bytearray|codecs\.decode|base64\.b64decode)`), "Python eval+decode chain"},
+	{regexp.MustCompile(`(?i)\bbase64\s+(--decode|-d)\b.*\|\s*(ba)?sh`), "base64 decode piped to shell"},
+	{regexp.MustCompile(`(?i)String\.fromCharCode\s*\(.*\beval\b`), "JS eval of decoded characters"},
+	{regexp.MustCompile(`(?i)Buffer\.from\s*\(.*'(hex|base64)'`), "Node.js Buffer decode pattern"},
+	{regexp.MustCompile(`(?i)codecs\.decode\s*\(.*'unicode.escape'`), "Python Unicode escape decode"},
+}
+
+func (e *Engine) checkRGS018(wf *parser.Workflow) []Finding {
+	var findings []Finding
+
+	for jobID, job := range wf.Jobs {
+		for _, step := range job.Steps {
+			if step.Run == "" {
+				continue
+			}
+
+			// Check built-in payload patterns.
+			for _, pp := range payloadPatterns {
+				if pp.pattern.MatchString(step.Run) {
+					evidence := fmt.Sprintf("Dangerous pattern: %s | Run block: %s",
+						pp.desc, truncate(step.Run, 200))
+					f := e.makeFinding("RGS-018", wf, jobID, step, evidence)
+					findings = append(findings, f)
+				}
+			}
+
+			// Check loaded threat signatures (IOCs from signatures.yaml).
+			for _, sig := range e.signatures {
+				if sig.compiled != nil && sig.compiled.MatchString(step.Run) {
+					evidence := fmt.Sprintf("Matched threat signature: %s (%s, %s) | Run block: %s",
+						sig.Description, sig.ThreatActor, sig.ID, truncate(step.Run, 200))
+					f := e.makeFinding("RGS-018", wf, jobID, step, evidence)
+					findings = append(findings, f)
+				}
+			}
+		}
+	}
+
+	return findings
+}
+

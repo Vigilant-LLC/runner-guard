@@ -26,6 +26,7 @@ type Workflow struct {
 	TriggerData map[string]interface{} // full trigger config for deeper inspection
 	Jobs        map[string]*Job        // keyed by the YAML job id
 	Raw         map[string]interface{} // entire parsed YAML for rule access
+	RawBytes    []byte                 // original file bytes for byte-level analysis (e.g. Unicode detection)
 	Permissions map[string]string      // workflow-level permissions
 }
 
@@ -115,6 +116,7 @@ func ParseBytes(data []byte, path string) (*Workflow, error) {
 	wf := &Workflow{
 		Path:        path,
 		Raw:         raw,
+		RawBytes:    data,
 		Jobs:        make(map[string]*Job),
 		TriggerData: make(map[string]interface{}),
 		Permissions: make(map[string]string),
