@@ -4,7 +4,7 @@
 
 On March 1, 2026, an autonomous AI agent compromised multiple high-profile open-source projects in under 20 minutes using misconfigured CI/CD pipelines. The agent forked repos, submitted pull requests, and exfiltrated Personal Access Tokens through `pull_request_target` workflows that checked out fork code in privileged contexts. Runner Guard catches the exact vulnerability class that made it possible.
 
-Runner Guard performs source-to-sink vulnerability scanning (also known as static taint analysis) on GitHub Actions workflow files to detect injection paths -- from attacker-controlled inputs (fork code, branch names, issue comments, PR titles) to dangerous sinks (shell execution, secret access, network exfiltration). It is the first scanner to detect AI configuration injection attacks across Claude (CLAUDE.md), GitHub Copilot (copilot-instructions.md), Cursor (.cursorrules), and MCP tooling (.mcp.json) -- where attackers weaponize fork PRs to hijack AI agents running in privileged CI contexts.
+Runner Guard performs source-to-sink vulnerability scanning (also known as static taint analysis) on GitHub Actions workflow files to detect injection paths -- from attacker-controlled inputs (fork code, branch names, issue comments, PR titles) to dangerous sinks (shell execution, secret access, network exfiltration). It detects AI configuration injection attacks across Claude (CLAUDE.md), GitHub Copilot (copilot-instructions.md), Cursor (.cursorrules), and MCP tooling (.mcp.json), and scans for supply chain steganography including the GlassWorm campaign's invisible Unicode payload technique and known IOCs.
 
 ---
 
@@ -13,27 +13,6 @@ Runner Guard performs source-to-sink vulnerability scanning (also known as stati
 GitHub Actions workflows triggered by `pull_request_target` run in the context of the base (target) repository, not the fork. This means they have access to repository secrets, write-scoped GITHUB_TOKEN, and all configured permissions. The trigger exists so maintainers can run trusted operations (labeling, commenting) on incoming PRs. The critical mistake is combining this privileged trigger with `actions/checkout` pointing at the pull request's head -- the fork code. When a workflow does this, every file in the attacker's fork executes with the base repository's full credentials.
 
 The attack chain is straightforward: an attacker forks the target repository, modifies build scripts, test configurations, Makefiles, or package manager hooks to include malicious commands (secret exfiltration, backdoor injection, release tampering), then opens a pull request. The `pull_request_target` workflow checks out the fork code and runs the build. The malicious commands execute with write access to the repository and all its secrets. In documented incidents, attackers exfiltrated Personal Access Tokens to external servers, then used them to push malicious commits directly to main branches -- all within minutes, fully automated by AI agents. The same pattern applies to `issue_comment` triggers where branch names or comment bodies are interpolated into shell commands without sanitization.
-
----
-
-## GlassWorm Supply Chain Attack Detection
-
-![GlassWorm Detection Demo](docs/glassworm-demo.gif)
-
-In March 2026, the GlassWorm campaign compromised 433+ components across GitHub, npm, and VS Code/OpenVSX by injecting invisible Unicode characters into source files. The attack uses variation selectors (U+FE00-FE0F), supplementary variation selectors (U+E0100-E01EF), and zero-width formatting characters to encode hidden payloads that are completely invisible in code editors, terminals, and GitHub's diff viewer. The decoded ZOMBI module performs credential harvesting (NPM tokens, GitHub PATs, git credentials), cryptocurrency wallet theft, SOCKS proxy deployment, and uses the Solana blockchain for command-and-control.
-
-Runner Guard detects GlassWorm and similar supply chain attacks at three levels:
-
-- **RGS-016** scans workflow YAML files at the byte level for invisible Unicode characters. Any match above the threshold indicates active compromise -- a steganographic payload is already embedded in your pipeline.
-
-- **RGS-017** extends the scan to files your workflows execute -- setup.py, package.json, Dockerfiles, Makefiles, shell scripts, and local action definitions. If `pip install .` runs setup.py and that file contains hidden Unicode, RGS-017 catches it.
-
-- **RGS-018** detects known GlassWorm IOCs (the `lzcdrtfxyqiplpd` marker variable, `~/init.json` persistence file, Solana C2 patterns) and dangerous eval+decode execution patterns (base64 decode piped to bash, Python eval of decoded bytes). IOC patterns are loaded from `signatures.yaml` and can be updated without recompiling.
-
-```bash
-# Run the GlassWorm detection demo
-runner-guard demo --scenario glassworm
-```
 
 ---
 
@@ -244,6 +223,18 @@ runner-guard baseline update
 **RGS-010** and **RGS-011** are unique to Runner Guard. No other CI/CD security scanner detects AI configuration injection attacks where an attacker modifies CLAUDE.md, .claude/settings.json, .mcp.json, or mcp-config.json in a fork pull request to hijack AI code review agents running in privileged CI contexts.
 
 **RGS-016**, **RGS-017**, and **RGS-018** detect the GlassWorm supply chain attack and related steganographic techniques. RGS-016 performs byte-level scanning of workflow files for invisible Unicode characters (variation selectors, zero-width chars, tag characters) used to encode hidden payloads. RGS-017 extends this analysis to files referenced and executed by workflows (setup.py, package.json, Dockerfiles, shell scripts). RGS-018 matches known IOC patterns from the GlassWorm campaign and detects dangerous eval+decode execution patterns. Threat signatures are loaded from an embedded `signatures.yaml` that can be updated without code changes.
+
+### GlassWorm Supply Chain Attack
+
+![GlassWorm Detection Demo](docs/glassworm-demo.gif)
+
+In March 2026, the GlassWorm campaign compromised 433+ components across GitHub, npm, and VS Code/OpenVSX by injecting invisible Unicode characters into source files. The decoded ZOMBI module performed credential harvesting, cryptocurrency wallet theft, SOCKS proxy deployment, and used the Solana blockchain for command-and-control — all hidden behind characters that are completely invisible in code editors, terminals, and GitHub's diff viewer.
+
+Runner Guard detects this attack at the byte level: invisible Unicode in workflow files (RGS-016), in referenced scripts like setup.py and package.json (RGS-017), and known GlassWorm IOCs and eval+decode payload patterns in run blocks (RGS-018). IOC patterns are loaded from `signatures.yaml` and can be updated without recompiling.
+
+```bash
+runner-guard demo --scenario glassworm
+```
 
 ---
 
