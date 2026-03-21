@@ -32,6 +32,8 @@ type Config struct {
 	RulesFS      fs.FS             // embedded rules filesystem
 	IgnoreRules  []string          // rule IDs to suppress
 	IgnoreFiles  []string          // file glob patterns to suppress
+	RuleIDs      []string          // if set, only run these rule IDs
+	Groups       []string          // if set, only run rules in these groups
 }
 
 // Result carries the outcomes of a scan: the list of findings and the
@@ -264,12 +266,13 @@ func newEngine(cfg Config) (*rules.Engine, error) {
 }
 
 // evaluate runs the engine against workflows, optionally injecting demo
-// context strings into findings.
+// context strings and applying rule/group filters.
 func evaluate(engine *rules.Engine, workflows []*parser.Workflow, cfg Config) []rules.Finding {
+	var demoContexts map[string]string
 	if cfg.IsDemo && len(cfg.DemoContexts) > 0 {
-		return engine.EvaluateWithDemoContext(workflows, cfg.DemoContexts)
+		demoContexts = cfg.DemoContexts
 	}
-	return engine.Evaluate(workflows)
+	return engine.EvaluateFiltered(workflows, cfg.RuleIDs, cfg.Groups, demoContexts)
 }
 
 // applyBaseline loads a baseline file (if configured) and removes matching

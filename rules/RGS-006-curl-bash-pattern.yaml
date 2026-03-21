@@ -1,4 +1,5 @@
 id: RGS-006
+group: supply-chain
 name: "Curl-Pipe-Bash Remote Code Execution"
 severity: high
 description: >

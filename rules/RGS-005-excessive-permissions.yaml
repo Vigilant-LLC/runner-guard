@@ -1,4 +1,5 @@
 id: RGS-005
+group: permissions
 name: "Excessive Permissions on Untrusted Trigger"
 severity: medium
 description: >

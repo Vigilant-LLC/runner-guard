@@ -1,4 +1,5 @@
 id: RGS-017
+group: steganography
 name: "Unicode Steganography in Referenced Script"
 severity: high
 description: >

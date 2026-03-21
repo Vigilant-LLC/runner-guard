@@ -1,4 +1,5 @@
 id: RGS-002
+group: injection
 name: "Expression Injection via Branch Name or Untrusted Input"
 severity: critical
 description: >

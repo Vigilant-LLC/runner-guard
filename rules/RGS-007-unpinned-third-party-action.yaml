@@ -1,4 +1,5 @@
 id: RGS-007
+group: supply-chain
 name: "Unpinned Third-Party Action Using Mutable Tag"
 severity: medium
 description: >

@@ -1,4 +1,5 @@
 id: RGS-018
+group: steganography
 name: "Suspicious Payload Execution Pattern"
 severity: high
 description: >

@@ -146,6 +146,15 @@ runner-guard scan path/to/.github/workflows/
 # Scan a single file
 runner-guard scan .github/workflows/ci.yml
 
+# Run only steganography/supply-chain rules
+runner-guard scan . --group steganography
+
+# Run only specific rules
+runner-guard scan . --rules RGS-016,RGS-018
+
+# Combine groups and rules (union)
+runner-guard scan . --group ai-config --rules RGS-001
+
 # Output as SARIF for GitHub Code Scanning
 runner-guard scan . --format sarif --output results.sarif
 
@@ -155,6 +164,8 @@ runner-guard scan . --format json
 # Fail on high severity or above (for CI gates)
 runner-guard scan . --fail-on high
 ```
+
+**Rule groups:** `injection`, `permissions`, `secrets`, `supply-chain`, `ai-config`, `steganography`, `debug`
 
 ### Run demo scenarios
 

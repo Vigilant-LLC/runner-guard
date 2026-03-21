@@ -1,4 +1,5 @@
 id: RGS-001
+group: injection
 name: "pull_request_target with Fork Code Checkout"
 severity: critical
 description: >

@@ -1,4 +1,5 @@
 id: RGS-014
+group: injection
 name: "Expression Injection via workflow_dispatch Input"
 severity: high
 description: >

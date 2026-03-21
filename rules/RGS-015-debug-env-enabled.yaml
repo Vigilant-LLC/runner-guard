@@ -1,4 +1,5 @@
 id: RGS-015
+group: debug
 name: "Actions Runner Debug Logging Enabled"
 severity: medium
 description: >

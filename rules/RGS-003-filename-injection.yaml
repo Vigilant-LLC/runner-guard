@@ -1,4 +1,5 @@
 id: RGS-003
+group: injection
 name: "Filename Injection via Git Diff or File Listing"
 severity: high
 description: >

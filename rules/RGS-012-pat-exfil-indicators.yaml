@@ -1,4 +1,5 @@
 id: RGS-012
+group: secrets
 name: "Secret Exfiltration via Outbound HTTP Request"
 severity: high
 description: >

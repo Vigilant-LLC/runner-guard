@@ -1,4 +1,5 @@
 id: RGS-010
+group: ai-config
 name: "AI Configuration File Injection via Fork Checkout"
 severity: high
 description: >

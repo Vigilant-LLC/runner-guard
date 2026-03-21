@@ -29,7 +29,7 @@ import (
 //
 //	go build -ldflags "-X main.version=1.0.0 -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 var (
-	version = "0.1.0"
+	version = "2.1.0"
 	commit  = "dev"
 	date    = "unknown"
 )
@@ -141,6 +141,8 @@ func newScanCmd() *cobra.Command {
 		changedOnly bool
 		output      string
 		noColor     bool
+		rulesFlag   string
+		groupFlag   string
 	)
 
 	cmd := &cobra.Command{
@@ -189,6 +191,14 @@ Path can be:
 				NoColor:     noColor || !isTTY(),
 				Output:      output,
 				RulesFS:     runnerguard.RulesFS,
+			}
+
+			// Apply --rules and --group filters.
+			if rulesFlag != "" {
+				cfg.RuleIDs = splitAndTrim(rulesFlag)
+			}
+			if groupFlag != "" {
+				cfg.Groups = splitAndTrim(groupFlag)
 			}
 
 			// Apply config-based ignore rules/files.
@@ -243,6 +253,8 @@ Path can be:
 	cmd.Flags().BoolVar(&changedOnly, "changed-only", false, "Only scan workflow files changed in current git branch")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Write report to file instead of stdout")
 	cmd.Flags().BoolVar(&noColor, "no-color", false, "Disable ANSI color output")
+	cmd.Flags().StringVar(&rulesFlag, "rules", "", "Run only specific rules (comma-separated, e.g. RGS-016,RGS-018)")
+	cmd.Flags().StringVar(&groupFlag, "group", "", "Run only rules in specific groups (comma-separated: injection, permissions, secrets, supply-chain, ai-config, steganography, debug)")
 
 	return cmd
 }
@@ -654,6 +666,19 @@ func mergeString(flag, defaultVal string, cfg *config.Config) string {
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
+
+// splitAndTrim splits a comma-separated string and trims whitespace from each element.
+func splitAndTrim(s string) []string {
+	parts := strings.Split(s, ",")
+	var result []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
+}
 
 // isTTY returns true when stdout is connected to a terminal.
 func isTTY() bool {

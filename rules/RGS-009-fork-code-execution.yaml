@@ -1,4 +1,5 @@
 id: RGS-009
+group: injection
 name: "Direct Execution of Fork Code in Privileged Context"
 severity: critical
 description: >

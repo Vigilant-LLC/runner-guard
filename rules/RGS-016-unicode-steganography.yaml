@@ -1,4 +1,5 @@
 id: RGS-016
+group: steganography
 name: "Unicode Steganography in Workflow File"
 severity: critical
 description: >

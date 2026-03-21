@@ -13,6 +13,7 @@ import (
 type RuleMetadata struct {
 	ID                string   `yaml:"id"`
 	Name              string   `yaml:"name"`
+	Group             string   `yaml:"group"`
 	Severity          string   `yaml:"severity"`
 	Description       string   `yaml:"description"`
 	Tags              []string `yaml:"tags"`
@@ -20,6 +21,17 @@ type RuleMetadata struct {
 	RealWorldIncident string   `yaml:"real_world_incident"`
 	Fix               string   `yaml:"fix"`
 	References        []string `yaml:"references"`
+}
+
+// ValidGroups lists all recognized rule group names.
+var ValidGroups = []string{
+	"injection",
+	"permissions",
+	"secrets",
+	"supply-chain",
+	"ai-config",
+	"steganography",
+	"debug",
 }
 
 // LoadRules reads all .yaml files from the provided filesystem, parses them into

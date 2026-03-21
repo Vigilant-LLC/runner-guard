@@ -1,4 +1,5 @@
 id: RGS-011
+group: ai-config
 name: "MCP Configuration Injection via Fork Checkout"
 severity: critical
 description: >

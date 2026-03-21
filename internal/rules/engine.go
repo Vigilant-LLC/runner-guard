@@ -145,10 +145,31 @@ func (e *Engine) registerCheckers() {
 // Evaluate runs all registered checkers against all provided workflows,
 // deduplicates findings, and sorts by severity then file then line number.
 func (e *Engine) Evaluate(workflows []*parser.Workflow) []Finding {
+	return e.EvaluateFiltered(workflows, nil, nil, nil)
+}
+
+// EvaluateFiltered runs only the checkers matching the given rule IDs and/or
+// groups. If both ruleIDs and groups are nil/empty, all checkers run. When
+// both are provided, their union is used (a rule matching either is included).
+func (e *Engine) EvaluateFiltered(workflows []*parser.Workflow, ruleIDs []string, groups []string, demoContexts map[string]string) []Finding {
+	allowed := e.resolveAllowedRules(ruleIDs, groups)
+
 	var all []Finding
 	for _, wf := range workflows {
-		for _, checker := range e.checkers {
+		for ruleID, checker := range e.checkers {
+			if allowed != nil {
+				if !allowed[ruleID] {
+					continue
+				}
+			}
 			findings := checker(wf)
+			if len(demoContexts) > 0 {
+				for i := range findings {
+					if ctx, ok := demoContexts[findings[i].RuleID]; ok {
+						findings[i].DemoContext = ctx
+					}
+				}
+			}
 			all = append(all, findings...)
 		}
 	}
@@ -158,19 +179,51 @@ func (e *Engine) Evaluate(workflows []*parser.Workflow) []Finding {
 // EvaluateWithDemoContext is the same as Evaluate but populates DemoContext
 // on findings using the provided mapping from rule ID to demo context string.
 func (e *Engine) EvaluateWithDemoContext(workflows []*parser.Workflow, demoContexts map[string]string) []Finding {
-	var all []Finding
-	for _, wf := range workflows {
-		for _, checker := range e.checkers {
-			findings := checker(wf)
-			for i := range findings {
-				if ctx, ok := demoContexts[findings[i].RuleID]; ok {
-					findings[i].DemoContext = ctx
-				}
+	return e.EvaluateFiltered(workflows, nil, nil, demoContexts)
+}
+
+// resolveAllowedRules builds a set of rule IDs that should run based on
+// explicit rule IDs and/or group names. Returns nil if no filtering is needed.
+func (e *Engine) resolveAllowedRules(ruleIDs []string, groups []string) map[string]bool {
+	if len(ruleIDs) == 0 && len(groups) == 0 {
+		return nil // no filtering
+	}
+
+	allowed := make(map[string]bool)
+
+	// Add explicitly listed rule IDs.
+	for _, id := range ruleIDs {
+		allowed[strings.ToUpper(id)] = true
+	}
+
+	// Add rules belonging to the requested groups.
+	if len(groups) > 0 {
+		groupSet := make(map[string]bool, len(groups))
+		for _, g := range groups {
+			groupSet[strings.ToLower(g)] = true
+		}
+		for id, meta := range e.rules {
+			if meta.Group != "" && groupSet[strings.ToLower(meta.Group)] {
+				allowed[id] = true
 			}
-			all = append(all, findings...)
 		}
 	}
-	return deduplicateAndSort(all)
+
+	return allowed
+}
+
+// ListGroups returns a sorted list of group names and their member rule IDs.
+func (e *Engine) ListGroups() map[string][]string {
+	groups := make(map[string][]string)
+	for id, meta := range e.rules {
+		if meta.Group != "" {
+			groups[meta.Group] = append(groups[meta.Group], id)
+		}
+	}
+	for g := range groups {
+		sort.Strings(groups[g])
+	}
+	return groups
 }
 
 // ---------------------------------------------------------------------------
@@ -384,23 +437,23 @@ func (e *Engine) makeFinding(ruleID string, wf *parser.Workflow, jobID string, s
 // works even without YAML rule files.
 func defaultRuleMetadata() map[string]*RuleMetadata {
 	return map[string]*RuleMetadata{
-		"RGS-001": {ID: "RGS-001", Name: "pull_request_target with Fork Code Checkout", Severity: "critical"},
-		"RGS-002": {ID: "RGS-002", Name: "Expression Injection via Untrusted Input", Severity: "high"},
-		"RGS-003": {ID: "RGS-003", Name: "Dynamic Command Construction from Step Outputs", Severity: "high"},
-		"RGS-004": {ID: "RGS-004", Name: "Privileged Trigger with Secrets and No Author Check", Severity: "high"},
-		"RGS-005": {ID: "RGS-005", Name: "Excessive Permissions on Untrusted Trigger", Severity: "medium"},
-		"RGS-006": {ID: "RGS-006", Name: "Dangerous Sink in Run Block", Severity: "high"},
-		"RGS-007": {ID: "RGS-007", Name: "Unpinned Third-Party Action", Severity: "medium"},
-		"RGS-008": {ID: "RGS-008", Name: "Secrets Exposure in Run Block", Severity: "medium"},
-		"RGS-009": {ID: "RGS-009", Name: "Fork Code Execution via Build Tools", Severity: "critical"},
-		"RGS-010": {ID: "RGS-010", Name: "AI Agent Config Poisoning via Fork PR", Severity: "high"},
-		"RGS-011": {ID: "RGS-011", Name: "MCP Config Injection via Fork Checkout", Severity: "high"},
-		"RGS-012": {ID: "RGS-012", Name: "External Network Access with Secrets Context", Severity: "medium"},
-		"RGS-014": {ID: "RGS-014", Name: "Expression Injection via workflow_dispatch Input", Severity: "high"},
-		"RGS-015": {ID: "RGS-015", Name: "Actions Runner Debug Logging Enabled", Severity: "medium"},
-		"RGS-016": {ID: "RGS-016", Name: "Unicode Steganography in Workflow File", Severity: "critical"},
-		"RGS-017": {ID: "RGS-017", Name: "Unicode Steganography in Referenced Script", Severity: "high"},
-		"RGS-018": {ID: "RGS-018", Name: "Suspicious Payload Execution Pattern", Severity: "high"},
+		"RGS-001": {ID: "RGS-001", Name: "pull_request_target with Fork Code Checkout", Severity: "critical", Group: "injection"},
+		"RGS-002": {ID: "RGS-002", Name: "Expression Injection via Untrusted Input", Severity: "high", Group: "injection"},
+		"RGS-003": {ID: "RGS-003", Name: "Dynamic Command Construction from Step Outputs", Severity: "high", Group: "injection"},
+		"RGS-004": {ID: "RGS-004", Name: "Privileged Trigger with Secrets and No Author Check", Severity: "high", Group: "permissions"},
+		"RGS-005": {ID: "RGS-005", Name: "Excessive Permissions on Untrusted Trigger", Severity: "medium", Group: "permissions"},
+		"RGS-006": {ID: "RGS-006", Name: "Dangerous Sink in Run Block", Severity: "high", Group: "supply-chain"},
+		"RGS-007": {ID: "RGS-007", Name: "Unpinned Third-Party Action", Severity: "medium", Group: "supply-chain"},
+		"RGS-008": {ID: "RGS-008", Name: "Secrets Exposure in Run Block", Severity: "medium", Group: "secrets"},
+		"RGS-009": {ID: "RGS-009", Name: "Fork Code Execution via Build Tools", Severity: "critical", Group: "injection"},
+		"RGS-010": {ID: "RGS-010", Name: "AI Agent Config Poisoning via Fork PR", Severity: "high", Group: "ai-config"},
+		"RGS-011": {ID: "RGS-011", Name: "MCP Config Injection via Fork Checkout", Severity: "high", Group: "ai-config"},
+		"RGS-012": {ID: "RGS-012", Name: "External Network Access with Secrets Context", Severity: "medium", Group: "secrets"},
+		"RGS-014": {ID: "RGS-014", Name: "Expression Injection via workflow_dispatch Input", Severity: "high", Group: "injection"},
+		"RGS-015": {ID: "RGS-015", Name: "Actions Runner Debug Logging Enabled", Severity: "medium", Group: "debug"},
+		"RGS-016": {ID: "RGS-016", Name: "Unicode Steganography in Workflow File", Severity: "critical", Group: "steganography"},
+		"RGS-017": {ID: "RGS-017", Name: "Unicode Steganography in Referenced Script", Severity: "high", Group: "steganography"},
+		"RGS-018": {ID: "RGS-018", Name: "Suspicious Payload Execution Pattern", Severity: "high", Group: "steganography"},
 	}
 }
 

@@ -1,4 +1,5 @@
 id: RGS-004
+group: permissions
 name: "Comment-Triggered Workflow Without Author Authorization Check"
 severity: high
 description: >
