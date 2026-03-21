@@ -61,6 +61,47 @@ func TestScanBytes_DetectsSupplementaryVariationSelectors(t *testing.T) {
 	assert.Contains(t, result.CategoryMap, "supplementary variation selector")
 }
 
+func TestScanBytes_IgnoresFE0FAfterEmoji(t *testing.T) {
+	// U+FE0F (Variation Selector 16) after emoji base characters is standard
+	// emoji presentation — NOT steganography. These should be ignored.
+	// ⚠️ = U+26A0 + U+FE0F, ✅ = U+2705 + U+FE0F, ⚙️ = U+2699 + U+FE0F, 🛠️ = U+1F6E0 + U+FE0F
+	data := []byte("name: CI\n" +
+		"on: push\n" +
+		"jobs:\n" +
+		"  build:\n" +
+		"    runs-on: ubuntu-latest\n" +
+		"    steps:\n" +
+		"      - name: Build \xe2\x9a\xa0\xef\xb8\x8f\n" + // ⚠️
+		"        run: echo \xe2\x9c\x85\xef\xb8\x8f done\n" + // ✅ (U+2705 is in Dingbats)
+		"      - name: Config \xe2\x9a\x99\xef\xb8\x8f\n" + // ⚙️
+		"        run: echo \xf0\x9f\x9b\xa0\xef\xb8\x8f tools\n") // 🛠️
+
+	result := scanBytesForSuspiciousUnicode(data, 1)
+	assert.Nil(t, result, "FE0F after emoji base characters should not be flagged")
+}
+
+func TestScanBytes_FlagsFE0FWithoutEmoji(t *testing.T) {
+	// U+FE0F NOT preceded by an emoji base should still be flagged as suspicious.
+	// 3× FE0F after ASCII 'a' (not an emoji base).
+	data := []byte("run: echo a\xef\xb8\x8fa\xef\xb8\x8fa\xef\xb8\x8f test\n")
+
+	result := scanBytesForSuspiciousUnicode(data, 3)
+	require.NotNil(t, result, "FE0F after non-emoji characters should be flagged")
+	assert.Equal(t, 3, result.TotalCount)
+	assert.Contains(t, result.CategoryMap, "variation selector")
+}
+
+func TestScanBytes_MixedEmojiAndSuspiciousFE0F(t *testing.T) {
+	// Mix: 2 legitimate FE0F after emoji + 3 suspicious FE0F after ASCII.
+	// Only the 3 suspicious ones should be counted.
+	data := []byte("name: \xe2\x9a\xa0\xef\xb8\x8f\xe2\x9c\x85\xef\xb8\x8f\n" + // ⚠️✅ (legitimate)
+		"run: echo x\xef\xb8\x8fy\xef\xb8\x8fz\xef\xb8\x8f\n") // x️y️z️ (suspicious)
+
+	result := scanBytesForSuspiciousUnicode(data, 3)
+	require.NotNil(t, result, "suspicious FE0F should still be detected alongside legitimate emoji")
+	assert.Equal(t, 3, result.TotalCount, "only non-emoji FE0F should be counted")
+}
+
 func TestScanBytes_IgnoresBOMAtPosition0(t *testing.T) {
 	// BOM at position 0 should be ignored; only BOM elsewhere is suspicious
 	data := []byte("\xef\xbb\xbfname: CI\non: push\n")

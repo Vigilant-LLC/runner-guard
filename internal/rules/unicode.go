@@ -73,6 +73,68 @@ func isSuspiciousRune(r rune, byteOffset int) (bool, string) {
 	return false, ""
 }
 
+// isEmojiBase returns true if the rune is an emoji base character that
+// legitimately precedes U+FE0F (Variation Selector 16) for emoji presentation.
+// This covers the Unicode ranges where FE0F is a standard presentation selector
+// rather than a steganographic indicator.
+func isEmojiBase(r rune) bool {
+	switch {
+	// Miscellaneous Symbols (e.g., ☀ ☁ ☎ ☑ ☕)
+	case r >= 0x2600 && r <= 0x26FF:
+		return true
+	// Dingbats (e.g., ✅ ✈ ✉ ✊ ✋ ✌ ✍ ❌ ❤)
+	case r >= 0x2700 && r <= 0x27BF:
+		return true
+	// Misc Technical (e.g., ⌚ ⌛ ⏩ ⏰)
+	case r >= 0x2300 && r <= 0x23FF:
+		return true
+	// Enclosed Alphanumerics (e.g., Ⓜ)
+	case r >= 0x2460 && r <= 0x24FF:
+		return true
+	// Arrows / Misc Symbols and Arrows
+	case r >= 0x2190 && r <= 0x21FF:
+		return true
+	case r >= 0x2B00 && r <= 0x2BFF:
+		return true
+	// CJK Symbols (e.g., ㊗ ㊙)
+	case r >= 0x3000 && r <= 0x303F:
+		return true
+	// Emoticons
+	case r >= 0x1F600 && r <= 0x1F64F:
+		return true
+	// Misc Symbols and Pictographs (e.g., 🌀-🏿)
+	case r >= 0x1F300 && r <= 0x1F3FF:
+		return true
+	// Transport and Map Symbols
+	case r >= 0x1F680 && r <= 0x1F6FF:
+		return true
+	// Supplemental Symbols and Pictographs
+	case r >= 0x1F900 && r <= 0x1F9FF:
+		return true
+	// Symbols and Pictographs Extended-A
+	case r >= 0x1FA00 && r <= 0x1FA6F:
+		return true
+	case r >= 0x1FA70 && r <= 0x1FAFF:
+		return true
+	// Geometric Shapes (e.g., ▶ ◀)
+	case r >= 0x25A0 && r <= 0x25FF:
+		return true
+	// Common individual emoji (⚠ U+26A0 already covered above, but some
+	// presentation-selector emoji like © ® ™ are below 0x2300)
+	case r == 0x00A9 || r == 0x00AE: // © ®
+		return true
+	case r == 0x203C || r == 0x2049: // ‼ ⁉
+		return true
+	case r == 0x20E3: // combining enclosing keycap
+		return true
+	case r >= 0x0030 && r <= 0x0039: // digits 0-9 (keycap sequences)
+		return true
+	case r == 0x0023 || r == 0x002A: // # * (keycap sequences)
+		return true
+	}
+	return false
+}
+
 // ScanResult holds the aggregated results of a Unicode steganography scan.
 type ScanResult struct {
 	Hits          []UnicodeHit
@@ -98,16 +160,27 @@ func scanBytesForSuspiciousUnicode(data []byte, threshold int) *ScanResult {
 	line := 1
 	col := 1
 	offset := 0
+	var prevRune rune
 
 	for offset < len(data) {
 		r, size := utf8.DecodeRune(data[offset:])
 		if r == utf8.RuneError && size <= 1 {
 			offset++
 			col++
+			prevRune = utf8.RuneError
 			continue
 		}
 
 		if suspicious, category := isSuspiciousRune(r, offset); suspicious {
+			// Skip U+FE0F (emoji presentation selector) when it follows an
+			// emoji base character — this is standard Unicode, not steganography.
+			if r == 0xFE0F && isEmojiBase(prevRune) {
+				prevRune = r
+				offset += size
+				col++
+				continue
+			}
+
 			hit := UnicodeHit{
 				Offset:    offset,
 				Line:      line,
@@ -126,6 +199,7 @@ func scanBytesForSuspiciousUnicode(data []byte, threshold int) *ScanResult {
 		} else {
 			col++
 		}
+		prevRune = r
 		offset += size
 	}
 
