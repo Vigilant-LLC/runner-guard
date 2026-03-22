@@ -117,6 +117,26 @@ func TestScanBytes_MixedEmojiAndSuspiciousFE0F(t *testing.T) {
 	assert.Equal(t, 3, result.TotalCount, "only non-emoji FE0F should be counted")
 }
 
+func TestScanBytes_IgnoresFE0EAfterEmoji(t *testing.T) {
+	// Real-world case: coolify uses ⏱︎ (U+23F1+FE0E) in workflow labels.
+	// FE0E is the text presentation selector — equally legitimate as FE0F.
+	data := []byte("stale-issue-label: '\xe2\x8f\xb1\xef\xb8\x8e Stale'\n" + // ⏱︎ (U+23F1+FE0E)
+		"stale-pr-label: '\xe2\x8f\xb1\xef\xb8\x8e Stale'\n" + // ⏱︎
+		"labels-to-remove: '\xe2\x8f\xb1\xef\xb8\x8e Stale'\n") // ⏱︎
+
+	result := scanBytesForSuspiciousUnicode(data, 1)
+	assert.Nil(t, result, "FE0E after emoji base should not be flagged")
+}
+
+func TestScanBytes_FlagsFE0EWithoutEmoji(t *testing.T) {
+	// FE0E after non-emoji characters should still be flagged.
+	data := []byte("run: echo a\xef\xb8\x8ea\xef\xb8\x8ea\xef\xb8\x8e test\n")
+
+	result := scanBytesForSuspiciousUnicode(data, 3)
+	require.NotNil(t, result, "FE0E after non-emoji characters should be flagged")
+	assert.Equal(t, 3, result.TotalCount)
+}
+
 func TestScanBytes_IgnoresBOMAtPosition0(t *testing.T) {
 	// BOM at position 0 should be ignored; only BOM elsewhere is suspicious
 	data := []byte("\xef\xbb\xbfname: CI\non: push\n")

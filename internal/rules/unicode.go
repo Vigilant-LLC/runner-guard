@@ -172,9 +172,10 @@ func scanBytesForSuspiciousUnicode(data []byte, threshold int) *ScanResult {
 		}
 
 		if suspicious, category := isSuspiciousRune(r, offset); suspicious {
-			// Skip U+FE0F (emoji presentation selector) when it follows an
-			// emoji base character — this is standard Unicode, not steganography.
-			if r == 0xFE0F && isEmojiBase(prevRune) {
+			// Skip U+FE0E (text presentation) and U+FE0F (emoji presentation)
+			// selectors when they follow an emoji base character — these are
+			// standard Unicode presentation selectors, not steganography.
+			if (r == 0xFE0E || r == 0xFE0F) && isEmojiBase(prevRune) {
 				prevRune = r
 				offset += size
 				col++
