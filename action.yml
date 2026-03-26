@@ -1,28 +1,107 @@
 name: Runner Guard
-description: Detect CI/CD source-to-sink injection vulnerabilities including AI config attacks
-author: Vigilant
+description: >
+  Scan GitHub Actions workflows for CI/CD security vulnerabilities including
+  expression injection, unpinned actions, secret exposure, and AI config attacks.
+  Uploads SARIF results to GitHub Code Scanning.
+author: Vigilant Cyber Security
+
 inputs:
+  version:
+    description: Runner Guard version to install (e.g. "v0.2.0"). Defaults to latest.
+    default: latest
   fail-on:
-    description: Minimum severity to fail the check
+    description: Minimum severity to fail the check (low, medium, high, critical)
     default: high
   sarif-upload:
-    description: Upload SARIF to GitHub Code Scanning
+    description: Upload SARIF results to GitHub Code Scanning
     default: 'true'
+  rules:
+    description: Run only specific rules (comma-separated, e.g. "RGS-002,RGS-007")
+    default: ''
+  group:
+    description: Run only rules in specific groups (comma-separated, e.g. "injection,supply-chain")
+    default: ''
+
 branding:
   icon: shield
   color: red
+
 runs:
   using: composite
   steps:
-    - name: Install Runner Guard
+    - name: Determine version
+      id: version
       shell: bash
       run: |
-        curl -sSfL https://raw.githubusercontent.com/Vigilant-LLC/runner-guard/main/install.sh | bash
-    - name: Scan
+        if [ "${{ inputs.version }}" = "latest" ]; then
+          VERSION=$(curl -sSf https://api.github.com/repos/Vigilant-LLC/runner-guard/releases/latest \
+            | grep '"tag_name":' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+        else
+          VERSION="${{ inputs.version }}"
+        fi
+        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "version_num=${VERSION#v}" >> "$GITHUB_OUTPUT"
+
+    - name: Detect platform
+      id: platform
       shell: bash
-      run: runner-guard scan . --format sarif --output runner-guard.sarif --fail-on ${{ inputs.fail-on }}
-    - name: Upload SARIF
+      run: |
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64|amd64) ARCH="amd64" ;;
+          aarch64|arm64) ARCH="arm64" ;;
+        esac
+        echo "os=${OS}" >> "$GITHUB_OUTPUT"
+        echo "arch=${ARCH}" >> "$GITHUB_OUTPUT"
+
+    - name: Download and verify Runner Guard
+      shell: bash
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        VERSION_NUM="${{ steps.version.outputs.version_num }}"
+        OS="${{ steps.platform.outputs.os }}"
+        ARCH="${{ steps.platform.outputs.arch }}"
+        ARCHIVE="runner-guard_${VERSION_NUM}_${OS}_${ARCH}.tar.gz"
+        URL="https://github.com/Vigilant-LLC/runner-guard/releases/download/${VERSION}/${ARCHIVE}"
+        CHECKSUMS_URL="https://github.com/Vigilant-LLC/runner-guard/releases/download/${VERSION}/checksums.txt"
+
+        echo "Downloading Runner Guard ${VERSION} (${OS}/${ARCH})..."
+        curl -sSfL -o "/tmp/${ARCHIVE}" "${URL}"
+        curl -sSfL -o "/tmp/checksums.txt" "${CHECKSUMS_URL}"
+
+        echo "Verifying checksum..."
+        cd /tmp
+        EXPECTED=$(grep "${ARCHIVE}" checksums.txt | awk '{print $1}')
+        ACTUAL=$(sha256sum "${ARCHIVE}" | awk '{print $1}')
+        if [ "${EXPECTED}" != "${ACTUAL}" ]; then
+          echo "::error::Checksum verification failed for ${ARCHIVE}"
+          echo "  Expected: ${EXPECTED}"
+          echo "  Actual:   ${ACTUAL}"
+          exit 1
+        fi
+        echo "Checksum verified."
+
+        echo "Installing..."
+        tar -xzf "${ARCHIVE}"
+        chmod +x runner-guard
+        sudo mv runner-guard /usr/local/bin/runner-guard
+
+    - name: Run scan
+      shell: bash
+      run: |
+        ARGS="scan . --format sarif --output runner-guard.sarif --fail-on ${{ inputs.fail-on }}"
+        if [ -n "${{ inputs.rules }}" ]; then
+          ARGS="${ARGS} --rules ${{ inputs.rules }}"
+        fi
+        if [ -n "${{ inputs.group }}" ]; then
+          ARGS="${ARGS} --group ${{ inputs.group }}"
+        fi
+        runner-guard ${ARGS}
+
+    - name: Upload SARIF to Code Scanning
       if: always() && inputs.sarif-upload == 'true'
       uses: github/codeql-action/upload-sarif@3b054500189c7b3ca9be7cd4f035ca58c00776cd # v3
       with:
         sarif_file: runner-guard.sarif
+        category: runner-guard
