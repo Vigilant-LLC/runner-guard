@@ -303,6 +303,6 @@ Runner Guard is provided as-is with no warranty. Use at your own risk. This tool
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE) for the full text.
+AGPL-3.0. See [LICENSE](LICENSE) for the full text.
 
 Copyright 2026 Vigilant.
