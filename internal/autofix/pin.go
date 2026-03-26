@@ -12,7 +12,64 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 )
+
+// shaCache is a persistent disk-backed cache for resolved action SHAs.
+// Key format: "owner/repo@ref" → 40-char SHA.
+// This dramatically reduces GitHub API calls when processing many repos,
+// since popular actions (checkout, codecov, etc.) appear across thousands of repos.
+var (
+	shaCacheMu   sync.Mutex
+	shaCacheMem  map[string]string // in-memory layer
+	shaCachePath string            // path to JSON cache file on disk
+)
+
+func init() {
+	shaCacheMem = make(map[string]string)
+
+	// Default cache location: ~/.runner-guard/sha-cache.json
+	home, err := os.UserHomeDir()
+	if err == nil {
+		dir := filepath.Join(home, ".runner-guard")
+		os.MkdirAll(dir, 0755)
+		shaCachePath = filepath.Join(dir, "sha-cache.json")
+		loadSHACache()
+	}
+}
+
+func loadSHACache() {
+	data, err := os.ReadFile(shaCachePath)
+	if err != nil {
+		return
+	}
+	json.Unmarshal(data, &shaCacheMem)
+}
+
+func saveSHACache() {
+	if shaCachePath == "" {
+		return
+	}
+	data, err := json.Marshal(shaCacheMem)
+	if err != nil {
+		return
+	}
+	os.WriteFile(shaCachePath, data, 0644)
+}
+
+func getCachedSHA(action, ref string) (string, bool) {
+	shaCacheMu.Lock()
+	defer shaCacheMu.Unlock()
+	sha, ok := shaCacheMem[action+"@"+ref]
+	return sha, ok
+}
+
+func setCachedSHA(action, ref, sha string) {
+	shaCacheMu.Lock()
+	defer shaCacheMu.Unlock()
+	shaCacheMem[action+"@"+ref] = sha
+	saveSHACache()
+}
 
 // PinResult describes what was changed in a single file.
 type PinResult struct {
@@ -96,6 +153,12 @@ func processFile(path string, dryRun bool) ([]PinResult, error) {
 	modified := false
 
 	for i, line := range lines {
+		// Skip commented-out lines (e.g. "# - uses: ...").
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+
 		matches := usesPattern.FindStringSubmatchIndex(line)
 		if matches == nil {
 			continue
@@ -214,9 +277,15 @@ type gitCommitResponse struct {
 // Falls back to: GET /repos/{owner}/{repo}/commits/{ref}
 // Uses GITHUB_TOKEN env var if available.
 func ResolveActionSHA(action string, ref string) (string, error) {
+	// Check cache first — avoids API call entirely.
+	if cached, ok := getCachedSHA(action, ref); ok {
+		return cached, nil
+	}
+
 	// Try the git ref/tags endpoint first.
 	sha, err := resolveViaTagRef(action, ref)
 	if err == nil && sha != "" {
+		setCachedSHA(action, ref, sha)
 		return sha, nil
 	}
 
@@ -225,6 +294,7 @@ func ResolveActionSHA(action string, ref string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolving %s@%s: %w", action, ref, err)
 	}
+	setCachedSHA(action, ref, sha)
 	return sha, nil
 }
 
