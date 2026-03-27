@@ -11,19 +11,37 @@ import (
 // Tier1Sources contains fully attacker-controlled expression fragments.
 // These are GitHub Actions context values that an external attacker can set
 // directly through pull request metadata, issue content, or comments.
+//
+// NOTE: Word-boundary matching is used in IsTainted() to prevent partial
+// matches (e.g. "github.ref" won't match "github.ref_protected").
+//
+// Excluded (not injectable):
+//   - github.event.pull_request.head.sha — hex-only SHA, no shell metacharacters
+//   - github.event_name — fixed set of event strings, not user-controllable
+//   - github.sha — hex-only commit SHA
 var Tier1Sources = []string{
+	// Branch/ref names — attacker controls via PR source branch
 	"github.head_ref",
 	"github.ref_name",
 	"github.ref",
 	"github.event.pull_request.head.ref",
-	"github.event.pull_request.head.sha",
+	"github.event.pull_request.head.label",
+	"github.event.workflow_run.head_branch",
+
+	// PR metadata — attacker controls via PR creation/editing
 	"github.event.pull_request.title",
 	"github.event.pull_request.body",
+
+	// Issue metadata — attacker controls via issue creation/editing
 	"github.event.issue.title",
 	"github.event.issue.body",
+
+	// Comment/review body — attacker controls via commenting
 	"github.event.comment.body",
 	"github.event.review.body",
 	"github.event.review_comment.body",
+
+	// Discussion metadata — attacker controls via discussion creation
 	"github.event.discussion.body",
 	"github.event.discussion.title",
 }
@@ -106,14 +124,29 @@ func init() {
 }
 
 // IsTainted checks whether a ${{ }} expression string contains any of the
-// given taint source substrings. The comparison is case-insensitive to handle
-// variations in expression casing.
+// given taint sources. Uses word-boundary matching to prevent false positives
+// from partial matches (e.g. "github.ref_name" should not match against a
+// source of "github.ref"). A word boundary is any character that is not a
+// letter, digit, underscore, or dot — i.e. the characters that make up
+// GitHub Actions context property paths.
 func IsTainted(expr string, sources []string) bool {
 	lower := strings.ToLower(expr)
 	for _, src := range sources {
-		if strings.Contains(lower, strings.ToLower(src)) {
-			return true
+		srcLower := strings.ToLower(src)
+		idx := strings.Index(lower, srcLower)
+		if idx == -1 {
+			continue
 		}
+		// Check that the match ends at a word boundary (not followed by
+		// a letter, digit, underscore, or dot that would extend the path).
+		end := idx + len(srcLower)
+		if end < len(lower) {
+			next := lower[end]
+			if (next >= 'a' && next <= 'z') || (next >= '0' && next <= '9') || next == '_' || next == '.' {
+				continue
+			}
+		}
+		return true
 	}
 	return false
 }

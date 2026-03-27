@@ -80,16 +80,40 @@ func TestIsTainted_Tier1Sources(t *testing.T) {
 			want:    true,
 		},
 		{
-			name:    "github.ref in expression",
+			name:    "github.ref in expression (word boundary prevents FP on ref_protected)",
 			expr:    "${{ github.ref }}",
 			sources: Tier1Sources,
 			want:    true,
 		},
 		{
-			name:    "PR head sha in expression",
+			name:    "PR head sha in expression (removed - hex SHA, not injectable)",
 			expr:    "${{ github.event.pull_request.head.sha }}",
 			sources: Tier1Sources,
+			want:    false,
+		},
+		{
+			name:    "PR head label in expression",
+			expr:    "${{ github.event.pull_request.head.label }}",
+			sources: Tier1Sources,
 			want:    true,
+		},
+		{
+			name:    "workflow_run head branch in expression",
+			expr:    "${{ github.event.workflow_run.head_branch }}",
+			sources: Tier1Sources,
+			want:    true,
+		},
+		{
+			name:    "github.ref_protected should not match (word boundary)",
+			expr:    "${{ github.ref_protected }}",
+			sources: Tier1Sources,
+			want:    false,
+		},
+		{
+			name:    "github.ref_type should not match (word boundary)",
+			expr:    "${{ github.ref_type }}",
+			sources: Tier1Sources,
+			want:    false,
 		},
 		{
 			name:    "PR head ref in expression",
@@ -709,11 +733,14 @@ func TestDangerousShellPatternsCompiled(t *testing.T) {
 
 func TestTier1SourcesComplete(t *testing.T) {
 	// Ensure we have the expected number of Tier 1 sources.
-	assert.Len(t, Tier1Sources, 14)
+	assert.Len(t, Tier1Sources, 15)
 
 	// Verify some key sources are present.
 	assert.Contains(t, Tier1Sources, "github.head_ref")
+	assert.Contains(t, Tier1Sources, "github.ref")
 	assert.Contains(t, Tier1Sources, "github.event.pull_request.title")
+	assert.Contains(t, Tier1Sources, "github.event.pull_request.head.label")
+	assert.Contains(t, Tier1Sources, "github.event.workflow_run.head_branch")
 	assert.Contains(t, Tier1Sources, "github.event.comment.body")
 }
 
