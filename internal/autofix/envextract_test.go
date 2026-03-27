@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Vigilant-LLC/runner-guard/internal/taint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,15 +29,9 @@ func readWorkflowFile(t *testing.T, dir string) string {
 	return string(data)
 }
 
-// tier1Matcher matches Tier-1 untrusted sources.
+// tier1Matcher matches Tier-1 untrusted sources using the canonical list.
 func tier1Matcher(expr string) bool {
-	lower := strings.ToLower(expr)
-	for _, src := range tier1Sources {
-		if strings.Contains(lower, strings.ToLower(src)) {
-			return true
-		}
-	}
-	return false
+	return taint.IsTainted(expr, taint.Tier1Sources)
 }
 
 // ---------------------------------------------------------------------------
