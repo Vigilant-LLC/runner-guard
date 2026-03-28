@@ -453,6 +453,8 @@ func isInsideSingleQuotes(text, target string) bool {
 
 // replaceOutsideSingleQuotes replaces occurrences of old with new_ in line,
 // but only when the occurrence is NOT inside a single-quoted string.
+// If the occurrence is not inside double quotes either, the replacement is
+// wrapped in double quotes to prevent shell injection via the env var.
 func replaceOutsideSingleQuotes(line, old, new_ string) string {
 	idx := strings.Index(line, old)
 	if idx < 0 {
@@ -460,20 +462,37 @@ func replaceOutsideSingleQuotes(line, old, new_ string) string {
 	}
 
 	// Count single quotes before this occurrence.
-	count := 0
+	singleCount := 0
 	for i := 0; i < idx; i++ {
 		if line[i] == '\'' {
-			count++
+			singleCount++
 		}
 	}
 
-	if count%2 == 1 {
+	if singleCount%2 == 1 {
 		// Inside single quotes — skip this occurrence, try the rest.
 		return line[:idx+len(old)] + replaceOutsideSingleQuotes(line[idx+len(old):], old, new_)
 	}
 
+	// Check if we're inside double quotes. If so, the existing quotes
+	// protect against shell injection and we don't need to add more.
+	doubleCount := 0
+	for i := 0; i < idx; i++ {
+		if line[i] == '"' && (i == 0 || line[i-1] != '\\') {
+			doubleCount++
+		}
+	}
+	insideDoubleQuotes := doubleCount%2 == 1
+
+	// If not inside any quotes, wrap the replacement in double quotes
+	// to prevent shell injection through the env var value.
+	replacement := new_
+	if !insideDoubleQuotes {
+		replacement = "\"" + new_ + "\""
+	}
+
 	// Outside single quotes — replace and continue with the rest.
-	return line[:idx] + new_ + replaceOutsideSingleQuotes(line[idx+len(old):], old, new_)
+	return line[:idx] + replacement + replaceOutsideSingleQuotes(line[idx+len(old):], old, new_)
 }
 
 // sanitizeEnvName replaces non-alphanumeric characters with underscores.
