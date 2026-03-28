@@ -122,7 +122,7 @@ func processFileEnvExtract(path string, matcher ExpressionMatcher, ruleID string
 		var matchingExprs []string
 		seen := make(map[string]bool)
 		for _, expr := range exprs {
-			if !seen[expr] && matcher(expr) && !isInsideSingleQuotes(runContent, expr) {
+			if !seen[expr] && matcher(expr) && !isInsideSingleQuotes(runContent, expr) && !isInsideBraceExpansion(runContent, expr) {
 				matchingExprs = append(matchingExprs, expr)
 				seen[expr] = true
 			}
@@ -455,6 +455,44 @@ func deriveEnvVarName(contextPath string) string {
 	}
 
 	return strings.ToUpper(sanitizeEnvName(contextPath))
+}
+
+// isInsideBraceExpansion checks whether the FIRST occurrence of target in text
+// is part of a bash brace expansion like {1..${{ expr }}}. Brace expansion
+// requires the value to be literal in the script source — it happens before
+// variable expansion, so extracting to an env var would break it.
+func isInsideBraceExpansion(text, target string) bool {
+	idx := strings.Index(text, target)
+	if idx < 0 {
+		return false
+	}
+	// Look backward from the expression for an opening { that's part of a brace expansion.
+	// Brace expansion patterns: {start..end}, {a,b,c}
+	for i := idx - 1; i >= 0; i-- {
+		if text[i] == '{' {
+			// Check if this looks like brace expansion (has .. or , after the {)
+			between := text[i+1 : idx]
+			if strings.Contains(between, "..") || strings.Contains(between, ",") {
+				// Verify there's a closing } after the expression
+				afterExpr := idx + len(target)
+				if afterExpr < len(text) {
+					rest := text[afterExpr:]
+					if closingIdx := strings.Index(rest, "}"); closingIdx >= 0 {
+						// Make sure the closing } comes before any newline
+						if nlIdx := strings.Index(rest, "\n"); nlIdx < 0 || closingIdx < nlIdx {
+							return true
+						}
+					}
+				}
+			}
+			break
+		}
+		// Stop looking if we hit a newline or another }
+		if text[i] == '\n' || text[i] == '}' {
+			break
+		}
+	}
+	return false
 }
 
 // isInsideSingleQuotes checks whether the FIRST occurrence of target in text
