@@ -154,16 +154,41 @@ func processFileEnvExtract(path string, matcher ExpressionMatcher, ruleID string
 			entries = append(entries, envEntry{name: envName, expr: expr})
 		}
 
+		// Detect the shell type for this step to use correct env var syntax.
+		// shell: cmd  → %VAR%
+		// shell: pwsh / powershell → $env:VAR
+		// default (bash) → ${VAR} (with quoting from replaceOutsideSingleQuotes)
+		shellType := detectShellType(lines, i, propIndent)
+
 		// Replace expressions in run content with env var references.
 		// Skip expressions inside single-quoted strings — shell won't expand
 		// variables in single quotes, so replacing would break behavior.
 		for _, entry := range entries {
+			var replacement string
+			switch shellType {
+			case "cmd":
+				replacement = "%" + entry.name + "%"
+			case "pwsh", "powershell":
+				replacement = "$env:" + entry.name
+			default:
+				replacement = "${" + entry.name + "}"
+			}
+
 			if isMulti {
 				for j := contentStart; j <= contentEnd; j++ {
-					lines[j] = replaceOutsideSingleQuotes(lines[j], entry.expr, "${"+entry.name+"}")
+					if shellType == "bash" {
+						lines[j] = replaceOutsideSingleQuotes(lines[j], entry.expr, replacement)
+					} else {
+						// For cmd/pwsh, do a simple replacement — quoting rules differ.
+						lines[j] = strings.ReplaceAll(lines[j], entry.expr, replacement)
+					}
 				}
 			} else {
-				lines[i] = replaceOutsideSingleQuotes(lines[i], entry.expr, "${"+entry.name+"}")
+				if shellType == "bash" {
+					lines[i] = replaceOutsideSingleQuotes(lines[i], entry.expr, replacement)
+				} else {
+					lines[i] = strings.ReplaceAll(lines[i], entry.expr, replacement)
+				}
 			}
 		}
 
@@ -510,4 +535,67 @@ func sanitizeEnvName(s string) string {
 		result = "_" + result
 	}
 	return result
+}
+
+// shellKeyRe matches a "shell:" key in a YAML step.
+var shellKeyRe = regexp.MustCompile(`^\s+shell:\s*(\S+)`)
+
+// detectShellType looks for a "shell:" key in the same step as the run: line
+// at position runLineIdx. Searches backward and forward within the step bounds
+// determined by indentation. Returns "bash" (default), "cmd", "pwsh", or "powershell".
+func detectShellType(lines []string, runLineIdx int, propIndent int) string {
+	// Determine the step boundaries by looking for the step's "- " dash.
+	dashIndent := propIndent - 2
+	if dashIndent < 0 {
+		dashIndent = 0
+	}
+
+	// Search backward from run: line to find step start.
+	start := runLineIdx
+	for start > 0 {
+		line := lines[start-1]
+		trimmed := strings.TrimRight(line, " \t\r")
+		if len(trimmed) == 0 {
+			start--
+			continue
+		}
+		indent := len(line) - len(strings.TrimLeft(line, " "))
+		if indent <= dashIndent && !strings.HasPrefix(strings.TrimSpace(line), "-") {
+			break
+		}
+		if indent == dashIndent && strings.HasPrefix(strings.TrimSpace(line), "- ") {
+			start--
+			break
+		}
+		start--
+	}
+
+	// Search forward from run: line to find step end.
+	end := runLineIdx
+	for end < len(lines)-1 {
+		end++
+		line := lines[end]
+		trimmed := strings.TrimRight(line, " \t\r")
+		if len(trimmed) == 0 {
+			continue
+		}
+		indent := len(line) - len(strings.TrimLeft(line, " "))
+		if indent <= dashIndent {
+			end--
+			break
+		}
+	}
+
+	// Look for "shell:" key within the step bounds.
+	for j := start; j <= end; j++ {
+		m := shellKeyRe.FindStringSubmatch(lines[j])
+		if m != nil {
+			shell := strings.ToLower(strings.TrimSpace(m[1]))
+			if shell == "cmd" || shell == "pwsh" || shell == "powershell" {
+				return shell
+			}
+		}
+	}
+
+	return "bash"
 }
