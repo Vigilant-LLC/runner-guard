@@ -270,8 +270,22 @@ func scanDir(dir string) ([]*Workflow, error) {
 // is less than the block's content indentation AND that does not look like a
 // YAML key or sequence item gets re-indented to the block's level.
 func sanitizeBlockScalars(data []byte) []byte {
-	// Normalize CRLF → LF.
-	data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+	// Replace control characters that yaml.v3 rejects with spaces.
+	// These can appear in block scalars as legitimate content (e.g., \b in
+	// Windows paths becomes 0x08 after YAML escape processing).  Replacing
+	// with spaces preserves string lengths and line structure while allowing
+	// the parser to proceed.
+	data = bytes.Map(func(r rune) rune {
+		if (r < 0x09 || (r > 0x0d && r < 0x20) || r == 0x7f) && r != 0x0a && r != 0x0d && r != 0x09 {
+			return ' '
+		}
+		return r
+	}, data)
+
+	// Strip all CR bytes.  This handles CRLF line endings (→ LF) and
+	// standalone CR characters that can appear inside block scalar content
+	// (e.g., Windows paths like target\release where \r is 0x0d).
+	data = bytes.ReplaceAll(data, []byte("\r"), []byte(""))
 
 	lines := bytes.Split(data, []byte("\n"))
 	out := make([][]byte, 0, len(lines))
