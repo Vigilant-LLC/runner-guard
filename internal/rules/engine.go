@@ -140,6 +140,7 @@ func (e *Engine) registerCheckers() {
 	e.checkers["RGS-016"] = e.checkRGS016
 	e.checkers["RGS-017"] = e.checkRGS017
 	e.checkers["RGS-018"] = e.checkRGS018
+	e.checkers["RGS-019"] = e.checkRGS019
 }
 
 // Evaluate runs all registered checkers against all provided workflows,
@@ -454,6 +455,7 @@ func defaultRuleMetadata() map[string]*RuleMetadata {
 		"RGS-016": {ID: "RGS-016", Name: "Unicode Steganography in Workflow File", Severity: "critical", Group: "steganography"},
 		"RGS-017": {ID: "RGS-017", Name: "Unicode Steganography in Referenced Script", Severity: "high", Group: "steganography"},
 		"RGS-018": {ID: "RGS-018", Name: "Suspicious Payload Execution Pattern", Severity: "high", Group: "steganography"},
+		"RGS-019": {ID: "RGS-019", Name: "Step Output Interpolated in run Block", Severity: "medium", Group: "injection"},
 	}
 }
 
@@ -1203,6 +1205,31 @@ func (e *Engine) checkRGS018(wf *parser.Workflow) []Finding {
 					f := e.makeFinding("RGS-018", wf, jobID, step, evidence)
 					findings = append(findings, f)
 				}
+			}
+		}
+	}
+
+	return findings
+}
+
+// ---------------------------------------------------------------------------
+// RGS-019: Step Output Interpolated in run Block
+// ---------------------------------------------------------------------------
+
+func (e *Engine) checkRGS019(wf *parser.Workflow) []Finding {
+	var findings []Finding
+
+	for jobID, job := range wf.Jobs {
+		for _, step := range job.Steps {
+			if step.Run == "" {
+				continue
+			}
+
+			matches := stepOutputPattern.FindAllString(step.Run, -1)
+			for _, match := range matches {
+				f := e.makeFinding("RGS-019", wf, jobID, step,
+					"Step output interpolated in run block: "+match+"}}")
+				findings = append(findings, f)
 			}
 		}
 	}

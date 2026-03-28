@@ -3,6 +3,7 @@
 package parser
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -71,6 +72,14 @@ var exprRe = regexp.MustCompile(`\$\{\{[^}]+\}\}`)
 // secretRe pulls the secret name out of an expression like ${{ secrets.FOO }}.
 var secretRe = regexp.MustCompile(`secrets\.([A-Za-z_][A-Za-z0-9_]*)`)
 
+// blockScalarRe matches YAML block scalar indicators (| or >) with optional
+// chomping/indentation modifiers, at the end of a mapping value.
+var blockScalarRe = regexp.MustCompile(`:\s+[|>][+-]?\d*\s*$`)
+
+// yamlKeyRe matches a line that looks like a YAML mapping key (word: ) or
+// sequence item (- ). Used to detect the end of a block scalar.
+var yamlKeyRe = regexp.MustCompile(`^\s*(\w[\w-]*\s*:|-)`)
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -88,6 +97,12 @@ func ParseFile(path string) (*Workflow, error) {
 // stored in the returned Workflow for reference but does not need to point to
 // an actual file on disk (useful for embedded demo content).
 func ParseBytes(data []byte, path string) (*Workflow, error) {
+	// Sanitize: normalize line endings and fix under-indented lines inside
+	// block scalars.  GitHub Actions is lenient about these, but Go's yaml.v3
+	// parser is strict and will reject files with lines that break out of a
+	// block scalar's indentation.
+	data = sanitizeBlockScalars(data)
+
 	// --- 1. Decode into a yaml.Node tree so we can track line numbers. ---
 	var docNode yaml.Node
 	if err := yaml.Unmarshal(data, &docNode); err != nil {
@@ -238,6 +253,107 @@ func scanDir(dir string) ([]*Workflow, error) {
 		return nil, walkErr
 	}
 	return workflows, nil
+}
+
+// ---------------------------------------------------------------------------
+// Block scalar sanitization
+// ---------------------------------------------------------------------------
+
+// sanitizeBlockScalars normalizes line endings and fixes under-indented lines
+// inside YAML block scalars (| or >).  GitHub Actions tolerates lines that
+// drop below the block scalar's indentation level (e.g., heredoc markers or
+// literal newlines in shell strings), but Go's yaml.v3 treats them as the
+// end of the block and fails to parse.  This function re-indents those lines
+// so yaml.v3 can parse the file.
+//
+// The heuristic: inside a block scalar, any non-empty line whose indentation
+// is less than the block's content indentation AND that does not look like a
+// YAML key or sequence item gets re-indented to the block's level.
+func sanitizeBlockScalars(data []byte) []byte {
+	// Normalize CRLF → LF.
+	data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+
+	lines := bytes.Split(data, []byte("\n"))
+	out := make([][]byte, 0, len(lines))
+
+	inBlock := false
+	blockIndent := 0 // expected content indentation (spaces)
+
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
+
+		if inBlock {
+			lineStr := string(line)
+			trimmed := strings.TrimLeft(lineStr, " ")
+			currentIndent := len(lineStr) - len(trimmed)
+
+			// Empty or whitespace-only lines are fine inside block scalars.
+			if trimmed == "" {
+				out = append(out, line)
+				continue
+			}
+
+			// If the line has enough indentation, it's still in the block.
+			if currentIndent >= blockIndent {
+				out = append(out, line)
+				continue
+			}
+
+			// Under-indented line.  If it looks like a YAML key or sequence
+			// item, treat it as the end of the block scalar.
+			if yamlKeyRe.MatchString(lineStr) {
+				inBlock = false
+				out = append(out, line)
+				// Fall through to check if this line starts a new block.
+				if blockScalarRe.Match(line) {
+					inBlock = true
+					blockIndent = currentIndent + detectBlockContentIndent(lines, i+1, currentIndent)
+				}
+				continue
+			}
+
+			// Not a YAML key — re-indent to the block's expected level.
+			padding := make([]byte, blockIndent)
+			for p := range padding {
+				padding[p] = ' '
+			}
+			out = append(out, append(padding, []byte(trimmed)...))
+			continue
+		}
+
+		// Not currently inside a block scalar.
+		out = append(out, line)
+
+		// Check if this line opens a block scalar.
+		if blockScalarRe.Match(line) {
+			inBlock = true
+			lineStr := string(line)
+			keyIndent := len(lineStr) - len(strings.TrimLeft(lineStr, " "))
+			blockIndent = keyIndent + detectBlockContentIndent(lines, i+1, keyIndent)
+		}
+	}
+
+	return bytes.Join(out, []byte("\n"))
+}
+
+// detectBlockContentIndent looks at lines following a block scalar indicator
+// to determine the content indentation level.  It returns the number of
+// additional spaces beyond keyIndent.  If no content line is found, it
+// returns a default of 2.
+func detectBlockContentIndent(lines [][]byte, start, keyIndent int) int {
+	for j := start; j < len(lines); j++ {
+		s := string(lines[j])
+		trimmed := strings.TrimLeft(s, " ")
+		if trimmed == "" {
+			continue // skip blank lines
+		}
+		indent := len(s) - len(trimmed)
+		if indent > keyIndent {
+			return indent - keyIndent
+		}
+		break // first non-blank line is at or below key indent — malformed, use default
+	}
+	return 2
 }
 
 // ---------------------------------------------------------------------------
