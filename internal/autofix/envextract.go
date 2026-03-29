@@ -122,7 +122,7 @@ func processFileEnvExtract(path string, matcher ExpressionMatcher, ruleID string
 		var matchingExprs []string
 		seen := make(map[string]bool)
 		for _, expr := range exprs {
-			if !seen[expr] && matcher(expr) && !isInsideSingleQuotes(runContent, expr) && !isInsideBraceExpansion(runContent, expr) {
+			if !seen[expr] && matcher(expr) && !isInsideBraceExpansion(runContent, expr) {
 				matchingExprs = append(matchingExprs, expr)
 				seen[expr] = true
 			}
@@ -515,9 +515,19 @@ func isInsideSingleQuotes(text, target string) bool {
 }
 
 // replaceOutsideSingleQuotes replaces occurrences of old with new_ in line,
-// but only when the occurrence is NOT inside a single-quoted string.
-// If the occurrence is not inside double quotes either, the replacement is
-// wrapped in double quotes to prevent shell injection via the env var.
+// handling both single-quoted and unquoted contexts.
+//
+// GitHub Actions ${{ }} expressions are expanded BEFORE the shell runs, so
+// single quotes do NOT protect against injection — the expression is pasted
+// as literal text into the script regardless of quoting. We must extract
+// expressions from ALL contexts.
+//
+// When the expression is inside single quotes, we use bash string
+// concatenation to break out: 'prefix'"${VAR}"'suffix'. This closes the
+// single quote, inserts the double-quoted variable, and reopens.
+//
+// When outside quotes, the replacement is wrapped in double quotes.
+// When inside double quotes, no additional quoting is needed.
 func replaceOutsideSingleQuotes(line, old, new_ string) string {
 	idx := strings.Index(line, old)
 	if idx < 0 {
@@ -533,8 +543,12 @@ func replaceOutsideSingleQuotes(line, old, new_ string) string {
 	}
 
 	if singleCount%2 == 1 {
-		// Inside single quotes — skip this occurrence, try the rest.
-		return line[:idx+len(old)] + replaceOutsideSingleQuotes(line[idx+len(old):], old, new_)
+		// Inside single quotes. ${{ }} is still expanded by GitHub Actions
+		// before the shell sees it, so we must extract. Use bash string
+		// concatenation: close single quote, insert double-quoted var,
+		// reopen single quote.
+		replacement := "'" + "\"" + new_ + "\"" + "'"
+		return line[:idx] + replacement + replaceOutsideSingleQuotes(line[idx+len(old):], old, new_)
 	}
 
 	// Check if we're inside double quotes. If so, the existing quotes

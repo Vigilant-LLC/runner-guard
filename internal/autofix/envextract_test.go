@@ -205,8 +205,8 @@ jobs:
 // Single-quote safety tests (P0)
 // ---------------------------------------------------------------------------
 
-func TestEnvExtract_SkipsSingleQuotedExpressions(t *testing.T) {
-	original := `name: CI
+func TestEnvExtract_ExtractsSingleQuotedExpressions(t *testing.T) {
+	dir := setupWorkflowFile(t, `name: CI
 on: push
 
 jobs:
@@ -214,18 +214,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo '${{ github.event.pull_request.title }}'
-`
-	dir := setupWorkflowFile(t, original)
+`)
 
 	results, err := ExtractExpressionsToEnv(dir, tier1Matcher, "RGS-002", false)
 	require.NoError(t, err)
-	assert.Empty(t, results, "should not extract expressions inside single quotes")
+	assert.Len(t, results, 1, "should extract expressions inside single quotes (GitHub expands before shell)")
 
 	content := readWorkflowFile(t, dir)
-	assert.Equal(t, original, content, "file should not be modified")
+	// The run block should use bash string concatenation: ''"${PR_TITLE}"''
+	assert.Contains(t, content, `'"${PR_TITLE}"'`)
+	// The env mapping should have the expression
+	assert.Contains(t, content, "PR_TITLE: ${{ github.event.pull_request.title }}")
 }
 
-func TestEnvExtract_MixedQuotesExtractsDoubleQuotedOnly(t *testing.T) {
+func TestEnvExtract_MixedQuotesExtractsBoth(t *testing.T) {
 	dir := setupWorkflowFile(t, `name: CI
 on: push
 
@@ -240,11 +242,16 @@ jobs:
 
 	results, err := ExtractExpressionsToEnv(dir, tier1Matcher, "RGS-002", false)
 	require.NoError(t, err)
-	assert.Len(t, results, 1, "should only extract the double-quoted expression")
+	assert.Len(t, results, 2, "should extract both single-quoted and double-quoted expressions")
 
 	content := readWorkflowFile(t, dir)
+	// Double-quoted expression: standard replacement
 	assert.Contains(t, content, "${HEAD_REF}")
-	assert.Contains(t, content, "${{ github.event.pull_request.title }}", "single-quoted expr should remain untouched")
+	// Single-quoted expression: bash string concatenation
+	assert.Contains(t, content, `'"${PR_TITLE}"'`)
+	// Both should be in env mappings
+	assert.Contains(t, content, "PR_TITLE: ${{ github.event.pull_request.title }}")
+	assert.Contains(t, content, "HEAD_REF: ${{ github.head_ref }}")
 }
 
 // ---------------------------------------------------------------------------
