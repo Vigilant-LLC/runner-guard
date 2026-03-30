@@ -725,11 +725,12 @@ func (e *Engine) checkRGS007(wf *parser.Workflow) []Finding {
 				continue
 			}
 
-			// Skip first-party and local actions
+			// Skip first-party, local, and Docker container actions
 			lower := strings.ToLower(step.Uses)
 			if strings.HasPrefix(lower, "actions/") ||
 				strings.HasPrefix(lower, "github/") ||
-				strings.HasPrefix(lower, "./") {
+				strings.HasPrefix(lower, "./") ||
+				strings.HasPrefix(lower, "docker://") {
 				continue
 			}
 

@@ -173,11 +173,12 @@ func processFile(path string, dryRun bool) ([]PinResult, error) {
 		ref := line[matches[6]:matches[7]]
 		prefix := line[matches[2]:matches[3]]
 
-		// Skip first-party and local actions.
+		// Skip first-party, local, and Docker container actions.
 		lower := strings.ToLower(action)
 		if strings.HasPrefix(lower, "actions/") ||
 			strings.HasPrefix(lower, "github/") ||
-			strings.HasPrefix(lower, "./") {
+			strings.HasPrefix(lower, "./") ||
+			strings.HasPrefix(lower, "docker://") {
 			continue
 		}
 
