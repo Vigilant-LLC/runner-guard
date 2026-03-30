@@ -563,9 +563,18 @@ func replaceOutsideSingleQuotes(line, old, new_ string) string {
 
 	// If not inside any quotes, wrap the replacement in double quotes
 	// to prevent shell injection through the env var value.
+	// However, if the expression is adjacent to other non-whitespace
+	// characters (e.g., ${{ expr }}/path), quoting just the variable
+	// creates invalid syntax like "${VAR}"/path. In that case, skip
+	// quoting — the value is part of a compound string.
 	replacement := new_
 	if !insideDoubleQuotes {
-		replacement = "\"" + new_ + "\""
+		afterIdx := idx + len(old)
+		adjacentAfter := afterIdx < len(line) && line[afterIdx] != ' ' && line[afterIdx] != '\t' && line[afterIdx] != '\n' && line[afterIdx] != '"' && line[afterIdx] != '\''
+		adjacentBefore := idx > 0 && line[idx-1] != ' ' && line[idx-1] != '\t' && line[idx-1] != '=' && line[idx-1] != '"' && line[idx-1] != '\''
+		if !adjacentAfter && !adjacentBefore {
+			replacement = "\"" + new_ + "\""
+		}
 	}
 
 	// Outside single quotes — replace and continue with the rest.
