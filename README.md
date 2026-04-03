@@ -22,7 +22,17 @@ In March 2026, the GlassWorm campaign compromised 433+ components across GitHub,
 
 The decoded ZOMBI module performed credential harvesting, cryptocurrency wallet theft, SOCKS proxy deployment, and used the Solana blockchain for command-and-control. The attack targeted files that CI pipelines trust implicitly: `setup.py`, `package.json`, build scripts, and workflow YAML itself. Because the malicious payload is invisible, standard code review and even `git diff` cannot detect it -- only byte-level scanning reveals the hidden characters.
 
-Runner Guard detects this attack class at the byte level: invisible Unicode in workflow files (RGS-016), in referenced scripts executed by workflows (RGS-017), and known IOC patterns and eval+decode payload techniques in run blocks (RGS-018). Threat signatures are loaded from an updatable `signatures.yaml` embedded in the binary, so new indicators can be added without code changes.
+Runner Guard detects this attack class at the byte level: invisible Unicode in workflow files (RGS-016), in referenced scripts executed by workflows (RGS-017), and known IOC patterns and eval+decode payload techniques in run blocks (RGS-018). Threat signatures are loaded from updatable YAML files in the `rules/signatures/` directory, organized by campaign, so new indicators can be added without code changes.
+
+### Active Supply Chain Campaign (March 2026)
+
+In March 2026, a coordinated supply chain attack campaign escalated through multiple phases, targeting increasingly critical open source infrastructure:
+
+- **Phase 1-2 (March 12)**: reviewdog and tj-actions/changed-files GitHub Actions compromised, harvesting CI/CD credentials from 23,000+ repositories
+- **Phase 3 (March 19-27)**: Aqua Security Trivy vulnerability scanner, Checkmarx KICS/AST GitHub Actions, BerriAI LiteLLM AI gateway (97M monthly downloads), and Telnyx Python SDK all compromised by threat actor TeamPCP. Cisco lost 300+ source code repositories as a direct result.
+- **Phase 4 (March 30)**: Axios HTTP client (100M weekly downloads) compromised with a cross-platform Remote Access Trojan. Attributed to North Korean threat actor UNC1069 by Google Threat Intelligence Group.
+
+Runner Guard includes IOC signatures for all confirmed phases of this campaign: TeamPCP C2 domains and behavioral patterns, UNC1069/Axios RAT indicators, and Telnyx steganography techniques. Signatures are organized in `rules/signatures/` with one file per campaign for easy browsing and contribution.
 
 ---
 
@@ -34,7 +44,7 @@ Runner Guard uses a four-stage analysis pipeline:
 
 2. **Source-to-Sink Tracker** -- Identifies attacker-controlled sources (`github.event.pull_request.head.sha`, `github.head_ref`, `github.event.comment.body`, `github.event.pull_request.title`, fork-checked-out file paths) and traces them through expression interpolations, environment variables, step outputs, and file artifacts to dangerous sinks (shell `run:` blocks, action `with:` inputs, network calls).
 
-3. **Rule Engine** -- Evaluates 18 detection rules (RGS-001 through RGS-019) against the parsed workflow and source-to-sink graph. Each rule defines source patterns, sink patterns, required context conditions (trigger type, permissions, checkout target), and severity. Rules are defined in YAML for easy extension. Threat signatures (IOC patterns) are loaded from an updatable `signatures.yaml` file embedded in the binary.
+3. **Rule Engine** -- Evaluates 18 detection rules (RGS-001 through RGS-019) against the parsed workflow and source-to-sink graph. Each rule defines source patterns, sink patterns, required context conditions (trigger type, permissions, checkout target), and severity. Rules are defined in YAML for easy extension. Threat signatures (31 IOC patterns across 5 campaigns) are loaded from the `rules/signatures/` directory, organized by threat actor for easy browsing and contribution.
 
 4. **Reporter** -- Outputs findings in multiple formats: human-readable console output with color and context, JSON for programmatic consumption, and SARIF for integration with GitHub Code Scanning, VS Code, and other SARIF-compatible tools.
 
@@ -43,7 +53,10 @@ Runner Guard uses a four-stage analysis pipeline:
 ## Features
 
 - **18 detection rules** covering fork checkout exploits, expression injection, secret exfiltration, unpinned actions, AI config injection, and supply chain steganography
-- **GlassWorm supply chain attack detection** -- Unicode steganography scanning, known IOC matching, and eval+decode payload pattern detection with updatable threat signatures
+- **31 threat signatures across 5 campaigns** -- GlassWorm, TeamPCP (Trivy/Checkmarx/LiteLLM), UNC1069/Axios, Telnyx, and general supply chain IOCs organized in `rules/signatures/` by threat actor
+- **Runner Guard Score** -- CI/CD security score (0-100) with letter grade and category breakdown (Pinning, Permissions, Injection, Triggers, IOCs) displayed after every scan
+- **Interactive CLI menu** -- run `runner-guard` with no arguments for a guided experience; power users use flags directly
+- **GlassWorm supply chain attack detection** -- Unicode steganography scanning, known IOC matching, and eval+decode payload pattern detection
 - **AI config injection detection** across Claude, GitHub Copilot, Cursor, and MCP tooling -- the first scanner to cover this attack surface
 - **Source-to-sink vulnerability scanning** tracing attacker-controlled inputs through expressions, environment variables, and step outputs to dangerous sinks
 - **SARIF output** for native GitHub Code Scanning integration -- findings appear in the Security tab
