@@ -17,6 +17,7 @@ import (
 
 	runnerguard "github.com/Vigilant-LLC/runner-guard"
 	"github.com/Vigilant-LLC/runner-guard/internal/autofix"
+	"github.com/Vigilant-LLC/runner-guard/internal/cli"
 	"github.com/Vigilant-LLC/runner-guard/internal/config"
 	"github.com/Vigilant-LLC/runner-guard/internal/git"
 	ghclient "github.com/Vigilant-LLC/runner-guard/internal/github"
@@ -95,6 +96,28 @@ var scenarios = []demoScenario{
 // ---------------------------------------------------------------------------
 
 func main() {
+	// If no arguments provided, show interactive menu.
+	if len(os.Args) == 1 {
+		cli.Version = version
+		selection := cli.ShowMenu()
+		if selection == "" {
+			return
+		}
+		// Map menu selection to os.Args for cobra to process.
+		switch {
+		case strings.HasPrefix(selection, "scan:"):
+			path := strings.TrimPrefix(selection, "scan:")
+			os.Args = []string{os.Args[0], "scan", path}
+		case strings.HasPrefix(selection, "fix:"):
+			path := strings.TrimPrefix(selection, "fix:")
+			os.Args = []string{os.Args[0], "fix", path}
+		case selection == "demo":
+			os.Args = []string{os.Args[0], "demo"}
+		default:
+			return
+		}
+	}
+
 	rootCmd := newRootCmd()
 
 	rootCmd.AddCommand(
