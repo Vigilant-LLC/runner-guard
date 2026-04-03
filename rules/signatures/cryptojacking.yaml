@@ -1,0 +1,25 @@
+version: 1
+last_updated: "2026-03-21"
+campaign: Cryptojacking
+description: >
+  Generic cryptocurrency mining indicators. Detects XMRig miners and
+  mining pool connections in CI/CD pipeline run blocks.
+
+signatures:
+  - id: crypto-miner-xmrig
+    threat_actor: Cryptojacking
+    type: ioc-behavior
+    pattern: "(?i)\\bxmrig\\b|stratum\\+tcp://|--donate-level"
+    description: "XMRig cryptocurrency miner indicators"
+    severity: high
+    first_seen: "2024-01"
+    references: []
+
+  - id: crypto-miner-pool
+    threat_actor: Cryptojacking
+    type: ioc-behavior
+    pattern: "(?i)\\bminerpool\\b|mining\\.pool|pool\\.miner"
+    description: "Cryptocurrency mining pool connection"
+    severity: high
+    first_seen: "2024-01"
+    references: []

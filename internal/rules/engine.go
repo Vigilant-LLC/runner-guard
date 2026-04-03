@@ -44,10 +44,12 @@ type ThreatSignature struct {
 	compiled    *regexp.Regexp
 }
 
-// SignaturesFile is the top-level structure of signatures.yaml.
+// SignaturesFile is the top-level structure of a signature YAML file.
 type SignaturesFile struct {
 	Version     int                `yaml:"version"`
 	LastUpdated string             `yaml:"last_updated"`
+	Campaign    string             `yaml:"campaign"`
+	Description string             `yaml:"description"`
 	Signatures  []*ThreatSignature `yaml:"signatures"`
 }
 
@@ -83,29 +85,67 @@ func NewEngine(fsys fs.FS) (*Engine, error) {
 	return e, nil
 }
 
-// loadSignatures reads and compiles threat signatures from signatures.yaml.
+// loadSignatures reads and compiles threat signatures from the rules/signatures/
+// directory. Each .yaml file in the directory represents a campaign or threat
+// actor. Falls back to reading rules/signatures.yaml for backward compatibility.
 func loadSignatures(fsys fs.FS) ([]*ThreatSignature, error) {
-	data, err := fs.ReadFile(fsys, "rules/signatures.yaml")
+	var allSignatures []*ThreatSignature
+
+	// Try directory-based loading first (rules/signatures/*.yaml).
+	dirEntries, dirErr := fs.ReadDir(fsys, "rules/signatures")
+	if dirErr == nil {
+		for _, entry := range dirEntries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+				continue
+			}
+			path := "rules/signatures/" + entry.Name()
+			sigs, err := loadSignatureFile(fsys, path)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to load signature file %s: %v\n", path, err)
+				continue
+			}
+			allSignatures = append(allSignatures, sigs...)
+		}
+		if len(allSignatures) > 0 {
+			return allSignatures, nil
+		}
+	}
+
+	// Fallback: try single-file format (rules/signatures.yaml) for backward compat.
+	sigs, err := loadSignatureFile(fsys, "rules/signatures.yaml")
+	if err != nil {
+		// Neither directory nor single file found — return empty (no signatures).
+		return nil, nil
+	}
+	return sigs, nil
+}
+
+// loadSignatureFile reads a single signature YAML file, parses it, and returns
+// compiled signatures. Invalid patterns are skipped with a warning.
+func loadSignatureFile(fsys fs.FS, path string) ([]*ThreatSignature, error) {
+	data, err := fs.ReadFile(fsys, path)
 	if err != nil {
 		return nil, err
 	}
 
 	var sf SignaturesFile
 	if err := yaml.Unmarshal(data, &sf); err != nil {
-		return nil, fmt.Errorf("parsing signatures.yaml: %w", err)
+		return nil, fmt.Errorf("parsing %s: %w", path, err)
 	}
 
+	seen := make(map[string]bool)
 	var valid []*ThreatSignature
 	for _, sig := range sf.Signatures {
-		if sig.Pattern == "" {
+		if sig.Pattern == "" || seen[sig.ID] {
 			continue
 		}
 		compiled, err := regexp.Compile(sig.Pattern)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: invalid signature pattern %q (%s): %v\n", sig.ID, sig.Pattern, err)
+			fmt.Fprintf(os.Stderr, "Warning: invalid signature pattern %q (%s) in %s: %v\n", sig.ID, sig.Pattern, path, err)
 			continue
 		}
 		sig.compiled = compiled
+		seen[sig.ID] = true
 		valid = append(valid, sig)
 	}
 	return valid, nil

@@ -8,6 +8,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/Vigilant-LLC/runner-guard/internal/rules"
+	"github.com/Vigilant-LLC/runner-guard/internal/score"
 )
 
 // ReportConsole writes color-coded findings to the provided writer.
@@ -48,6 +49,8 @@ func ReportConsole(w io.Writer, findings []rules.Finding, noColor bool, duration
 
 	if len(findings) == 0 {
 		fmt.Fprintln(w, green("\u2713 No issues found. Stay vigilant."))
+		s := score.Calculate(findings)
+		fmt.Fprint(w, s.String())
 		fmt.Fprintf(w, "\nScan completed in %s\n", duration)
 		if !isDemo {
 			printFooter(w, thinSep)
@@ -150,6 +153,10 @@ func ReportConsole(w io.Writer, findings []rules.Finding, noColor bool, duration
 		yellow(fmt.Sprintf("%d", counts["medium"])),
 		cyan(fmt.Sprintf("%d", counts["low"])),
 	)
+
+	// Runner Guard Score.
+	s := score.Calculate(findings)
+	fmt.Fprint(w, s.String())
 
 	fmt.Fprintf(w, "\nScan completed in %s\n", duration)
 

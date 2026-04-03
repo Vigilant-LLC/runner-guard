@@ -1,0 +1,75 @@
+version: 1
+last_updated: "2026-04-02"
+campaign: UNC1069-Axios
+description: >
+  UNC1069 is a suspected North Korean threat actor (attributed by Google
+  Threat Intelligence Group) who compromised the Axios npm package on
+  March 30-31, 2026. Versions 1.14.1 and 0.30.4 were published with a
+  malicious dependency (plain-crypto-js) that deployed a cross-platform
+  Remote Access Trojan for macOS, Windows, and Linux. The attacker
+  hijacked the npm account of a primary maintainer and published both
+  backdoored versions within a 39-minute window.
+
+signatures:
+  # C2 Domain
+  - id: unc1069-c2-sfrclak
+    threat_actor: UNC1069
+    type: ioc-domain
+    pattern: "(?i)sfrclak\\[?\\.]?com|sfrclak\\.com"
+    description: "UNC1069 C2 domain used in Axios supply chain attack"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://thehackernews.com/2026/03/axios-supply-chain-attack-pushes-cross.html"
+      - "https://www.elastic.co/security-labs/axios-one-rat-to-rule-them-all"
+
+  # Package IOCs
+  - id: unc1069-malicious-package
+    threat_actor: UNC1069
+    type: ioc-package
+    pattern: "(?i)\\bplain-crypto-js\\b|plain[-_]crypto[-_]js"
+    description: "UNC1069 malicious npm package plain-crypto-js (typosquat of crypto-js)"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://www.ox.security/blog/axios-compromised-with-a-malicious-dependency"
+
+  - id: unc1069-compromised-axios
+    threat_actor: UNC1069
+    type: ioc-package
+    pattern: "(?i)axios@1\\.14\\.1|axios@0\\.30\\.4"
+    description: "Known compromised Axios versions containing plain-crypto-js RAT"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://snyk.io/blog/axios-npm-package-compromised-supply-chain-attack-delivers-cross-platform/"
+
+  # Behavioral IOCs
+  - id: unc1069-postinstall-exec
+    threat_actor: UNC1069
+    type: ioc-behavior
+    pattern: "(?i)postinstall.*base64.*decode|base64.*decode.*tmp.*exec.*rm|base64.*decode.*temp.*exec.*del"
+    description: "Postinstall script chain: base64 decode, write to temp, execute, self-delete (Axios RAT pattern)"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://www.aikido.dev/blog/axios-npm-compromised-maintainer-hijacked-rat"
+
+  - id: unc1069-temp-exec-delete
+    threat_actor: UNC1069
+    type: ioc-behavior
+    pattern: "(?i)(mktemp|/tmp/|\\$TEMP|%TEMP%).*&&.*(sh\\b|bash\\b|powershell|pwsh).*&&.*(rm\\s+-|del\\s+|Remove-Item)"
+    description: "Write to temp directory, execute via shell, then delete (self-cleaning RAT pattern)"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://www.elastic.co/security-labs/axios-one-rat-to-rule-them-all"
+
+  - id: unc1069-npm-publish-hijack
+    threat_actor: UNC1069
+    type: ioc-behavior
+    pattern: "(?i)npm\\s+publish.*--otp|npm\\s+publish.*--access\\s+public.*plain"
+    description: "npm publish with OTP or publishing package with suspicious name"
+    severity: high
+    first_seen: "2026-03"
+    references: []

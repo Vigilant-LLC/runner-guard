@@ -1,0 +1,105 @@
+version: 1
+last_updated: "2026-04-02"
+campaign: TeamPCP
+description: >
+  TeamPCP (also tracked as DeadCatx3, PCPcat, ShellForce, CipherForce)
+  conducted a multi-stage supply chain campaign in March 2026. They
+  compromised Aqua Security Trivy (March 19), Checkmarx KICS and AST
+  (March 23), BerriAI LiteLLM (March 24), and Telnyx (March 27).
+  The attacks used stolen CI/CD credentials to force-push malicious tags,
+  harvest secrets from runner memory, and exfiltrate encrypted archives.
+  Cisco lost 300+ source code repos as a direct result.
+
+signatures:
+  # C2 Domains
+  - id: teampcp-c2-aqua-typosquat
+    threat_actor: TeamPCP
+    type: ioc-domain
+    pattern: "(?i)scan\\.aquasecur[ti]iy?\\.org|aquasecur[ti]iy?\\.org"
+    description: "TeamPCP typosquat domain impersonating Aqua Security"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://www.wiz.io/blog/trivy-compromised-teampcp-supply-chain-attack"
+
+  - id: teampcp-c2-checkmarx-typosquat
+    threat_actor: TeamPCP
+    type: ioc-domain
+    pattern: "(?i)checkmarx\\[?\\.]?zone|checkmarx\\.zone"
+    description: "TeamPCP typosquat domain impersonating Checkmarx"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://thehackernews.com/2026/03/teampcp-hacks-checkmarx-github-actions.html"
+
+  - id: teampcp-c2-litellm
+    threat_actor: TeamPCP
+    type: ioc-domain
+    pattern: "(?i)models\\.litellm\\.cloud"
+    description: "TeamPCP C2 domain used in LiteLLM compromise"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://www.endorlabs.com/learn/teampcp-isnt-done"
+
+  - id: teampcp-c2-telnyx-ip
+    threat_actor: TeamPCP
+    type: ioc-domain
+    pattern: "83\\.142\\.209\\.203"
+    description: "TeamPCP C2 IP address used in Telnyx compromise"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://www.akamai.com/blog/security-research/2026/mar/telnyx-pypi-2026-teampcp-supply-chain-attacks"
+
+  # Behavioral IOCs
+  - id: teampcp-archive-exfil
+    threat_actor: TeamPCP
+    type: ioc-behavior
+    pattern: "(?i)tpcp\\.tar\\.gz|tpcp[-_]?archive|TeamPCP.*Cloud.*[Ss]tealer"
+    description: "TeamPCP encrypted exfiltration archive (tpcp.tar.gz) or stealer identification"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://unit42.paloaltonetworks.com/teampcp-supply-chain-attacks/"
+
+  - id: teampcp-proc-mem-read
+    threat_actor: TeamPCP
+    type: ioc-behavior
+    pattern: "(?i)/proc/[0-9]+/mem|/proc/self/mem|Runner\\.Worker.*mem|dump.*Runner\\.Worker"
+    description: "Process memory harvesting targeting CI runner worker process"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://www.wiz.io/blog/trivy-compromised-teampcp-supply-chain-attack"
+
+  - id: teampcp-tag-force-push
+    threat_actor: TeamPCP
+    type: ioc-behavior
+    pattern: "(?i)git\\s+tag\\s+-f|git\\s+push\\s+.*--force.*tags|git\\s+push\\s+--tags\\s+--force"
+    description: "Force-pushing git tags (used by TeamPCP to redirect action references to malicious commits)"
+    severity: high
+    first_seen: "2026-03"
+    references:
+      - "https://www.aquasec.com/blog/trivy-supply-chain-attack-what-you-need-to-know/"
+
+  - id: teampcp-github-release-exfil
+    threat_actor: TeamPCP
+    type: ioc-behavior
+    pattern: "(?i)tpcp-docs.*release|gh\\s+release\\s+create.*tpcp"
+    description: "TeamPCP fallback exfiltration via GitHub release assets in victim org"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://www.wiz.io/blog/tracking-teampcp-investigating-post-compromise-attacks-seen-in-the-wild"
+
+  # Package IOCs
+  - id: teampcp-malicious-trivy
+    threat_actor: TeamPCP
+    type: ioc-package
+    pattern: "(?i)trivy@0\\.69\\.4|trivy-action.*malicious|setup-trivy.*compromised"
+    description: "Known compromised Trivy version or references to compromised Trivy actions"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23"

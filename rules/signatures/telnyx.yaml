@@ -1,0 +1,64 @@
+version: 1
+last_updated: "2026-04-02"
+campaign: TeamPCP-Telnyx
+description: >
+  TeamPCP compromised the Telnyx Python SDK on PyPI on March 27, 2026.
+  Versions 4.87.1 and 4.87.2 contained a three-stage payload hidden
+  inside WAV audio files. The attack added Windows Startup folder
+  persistence, reduced package footprint by 87%, and renamed persistence
+  artifacts to evade detection rules from the earlier LiteLLM disclosure.
+  The RSA-4096 key is byte-for-byte identical to the LiteLLM payload.
+
+signatures:
+  # Behavioral IOCs
+  - id: telnyx-wav-hidden-payload
+    threat_actor: TeamPCP
+    type: ioc-behavior
+    pattern: "(?i)\\.wav.*\\bread\\b.*\\bbinary\\b|\\.wav.*struct\\.unpack|wave\\.open.*\\bframes\\b.*decode"
+    description: "Reading binary data from WAV files (steganography payload extraction)"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://thehackernews.com/2026/03/teampcp-pushes-malicious-telnyx.html"
+      - "https://www.akamai.com/blog/security-research/2026/mar/telnyx-pypi-2026-teampcp-supply-chain-attacks"
+
+  - id: telnyx-startup-persistence
+    threat_actor: TeamPCP
+    type: ioc-filepath
+    pattern: "(?i)AppData.*\\\\Microsoft\\\\Windows\\\\Start Menu\\\\Programs\\\\Startup|~/\\.config/autostart"
+    description: "Windows Startup folder or Linux autostart persistence (Telnyx RAT variant)"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://www.trendmicro.com/en_us/research/26/c/teampcp-telnyx-attack-marks-a-shift-in-tactics.html"
+
+  - id: telnyx-hidden-persistence
+    threat_actor: TeamPCP
+    type: ioc-filepath
+    pattern: "(?i)/tmp/\\.telnyx|/var/tmp/\\.[a-z]{5,}|%LOCALAPPDATA%\\\\\\.[a-z]{5,}"
+    description: "Hidden persistence paths in temp directories (Telnyx campaign pattern)"
+    severity: high
+    first_seen: "2026-03"
+    references:
+      - "https://research.jfrog.com/post/team-pcp-strikes-again-telnyx-popular-library-hit/"
+
+  # Package IOCs
+  - id: telnyx-compromised-versions
+    threat_actor: TeamPCP
+    type: ioc-package
+    pattern: "(?i)telnyx==4\\.87\\.1|telnyx==4\\.87\\.2|telnyx@4\\.87\\.[12]"
+    description: "Known compromised Telnyx PyPI versions with embedded RAT"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://www.endorlabs.com/learn/teampcp-strikes-again-telnyx-compromised-three-days-after-litellm"
+
+  - id: telnyx-aes-rsa-exfil
+    threat_actor: TeamPCP
+    type: ioc-behavior
+    pattern: "(?i)AES.*256.*CBC.*RSA.*OAEP|RSA.*4096.*tpcp|OAEP.*encrypt.*tar\\.gz"
+    description: "AES-256-CBC + RSA-4096 OAEP encryption chain for exfiltration (TeamPCP signature)"
+    severity: critical
+    first_seen: "2026-03"
+    references:
+      - "https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/"

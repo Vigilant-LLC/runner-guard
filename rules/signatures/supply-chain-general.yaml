@@ -1,0 +1,35 @@
+version: 1
+last_updated: "2026-04-02"
+campaign: Supply-Chain-General
+description: >
+  General supply chain attack indicators not tied to a specific campaign.
+  Includes known compromised tools and common exfiltration patterns.
+
+signatures:
+  - id: codecov-bash-uploader
+    threat_actor: Supply-Chain
+    type: ioc-behavior
+    pattern: "(?i)\\bcurl\\s+-s\\s+https://codecov\\.io/bash\\s*\\|"
+    description: "Deprecated Codecov bash uploader (compromised in 2021 supply chain attack)"
+    severity: high
+    first_seen: "2021-04"
+    references:
+      - "https://about.codecov.io/security-update/"
+
+  - id: supply-chain-curl-exfil
+    threat_actor: Generic
+    type: ioc-behavior
+    pattern: "(?i)(curl|wget)\\s+(-s\\s+)?(-X\\s+POST\\s+)?https?://[a-z0-9]{6,20}\\.[a-z]{2,6}[:/]"
+    description: "curl/wget to short random domain during CI execution (potential exfiltration)"
+    severity: high
+    first_seen: "2026-03"
+    references: []
+
+  - id: supply-chain-env-harvest
+    threat_actor: Generic
+    type: ioc-behavior
+    pattern: "(?i)(printenv|\\benv\\b|\\bset\\b)\\s*>\\s*[a-z/]|\\benv\\b.*\\|.*(curl|wget|nc\\b)"
+    description: "Bulk environment variable dumping to file or network (credential harvesting)"
+    severity: critical
+    first_seen: "2026-03"
+    references: []

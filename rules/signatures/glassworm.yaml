@@ -1,0 +1,70 @@
+version: 1
+last_updated: "2026-03-21"
+campaign: GlassWorm
+description: >
+  GlassWorm campaign compromised 433+ components across GitHub, npm, and
+  VS Code/OpenVSX using Unicode steganography. Invisible characters encode
+  executable payloads that activate during CI/CD pipeline runs. The decoded
+  ZOMBI module performs credential harvesting, cryptocurrency wallet theft,
+  SOCKS proxy deployment, and uses the Solana blockchain for C2.
+
+signatures:
+  - id: glassworm-marker-variable
+    threat_actor: GlassWorm
+    type: ioc-variable
+    pattern: "\\blzcdrtfxyqiplpd\\b"
+    description: "Known GlassWorm malware marker variable"
+    severity: high
+    first_seen: "2025-10"
+    references:
+      - "https://www.aikido.dev/blog/glassworm-returns-unicode-attack-github-npm-vscode"
+
+  - id: glassworm-persistence-file
+    threat_actor: GlassWorm
+    type: ioc-filepath
+    pattern: "~/init\\.json"
+    description: "GlassWorm persistence file path"
+    severity: high
+    first_seen: "2025-10"
+    references:
+      - "https://thehackernews.com/2026/03/glassworm-attack-uses-stolen-github.html"
+
+  - id: glassworm-hidden-node
+    threat_actor: GlassWorm
+    type: ioc-filepath
+    pattern: "~/node-v22"
+    description: "GlassWorm hidden Node.js installation path"
+    severity: high
+    first_seen: "2025-10"
+    references:
+      - "https://thehackernews.com/2026/03/glassworm-attack-uses-stolen-github.html"
+
+  - id: glassworm-solana-c2
+    threat_actor: GlassWorm
+    type: ioc-behavior
+    pattern: "(?i)solana.*memo|memo.*solana"
+    description: "Potential Solana blockchain C2 communication pattern"
+    severity: high
+    first_seen: "2025-11"
+    references:
+      - "https://securityonline.info/glassworm-supply-chain-worm-uses-invisible-unicode-and-solana-blockchain-for-stealth-c2/"
+
+  - id: glassworm-zombi-xor
+    threat_actor: GlassWorm
+    type: ioc-behavior
+    pattern: "(?i)zlib\\.decompress.*\\bxor\\b|\\bxor\\b.*zlib\\.decompress"
+    description: "GlassWorm ZOMBI-style zlib+XOR deobfuscation chain"
+    severity: critical
+    first_seen: "2025-12"
+    references:
+      - "https://www.aikido.dev/blog/glassworm-returns-unicode-attack-github-npm-vscode"
+
+  - id: glassworm-unicode-decode
+    threat_actor: GlassWorm
+    type: ioc-behavior
+    pattern: "(?i)\\\\u[0-9a-f]{4}.*\\\\u[0-9a-f]{4}.*exec|exec.*\\\\u[0-9a-f]{4}.*\\\\u[0-9a-f]{4}"
+    description: "Unicode escape sequence used to hide executable payload"
+    severity: high
+    first_seen: "2025-11"
+    references:
+      - "https://www.aikido.dev/blog/glassworm-returns-unicode-attack-github-npm-vscode"
