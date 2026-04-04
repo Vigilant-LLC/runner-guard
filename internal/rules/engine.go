@@ -448,6 +448,37 @@ func isCheckoutAction(uses string) bool {
 	return strings.HasPrefix(strings.ToLower(uses), "actions/checkout")
 }
 
+// effectivePermissions returns the resolved permissions for a job.
+// Job-level permissions override workflow-level when set.
+func effectivePermissions(wf *parser.Workflow, job *parser.Job) map[string]string {
+	if len(job.Permissions) > 0 {
+		return job.Permissions
+	}
+	return wf.Permissions
+}
+
+// isReadOnlyPermissions returns true if the permissions map only grants read
+// access. Returns false if permissions are empty (default is write), if any
+// scope has "write" access, or if "_all" is "write-all".
+func isReadOnlyPermissions(perms map[string]string) bool {
+	if len(perms) == 0 {
+		return false // no permissions block = default (broad access)
+	}
+
+	// Check for global permission strings.
+	if all, ok := perms["_all"]; ok {
+		return all == "read-all" || all == "read"
+	}
+
+	// Check individual scopes - all must be "read" or "none".
+	for _, v := range perms {
+		if v == "write" {
+			return false
+		}
+	}
+	return true
+}
+
 // makeFinding builds a Finding from the engine's loaded rule metadata.
 func (e *Engine) makeFinding(ruleID string, wf *parser.Workflow, jobID string, step *parser.Step, evidence string) Finding {
 	f := Finding{
@@ -760,6 +791,10 @@ func (e *Engine) checkRGS007(wf *parser.Workflow) []Finding {
 	var findings []Finding
 
 	for jobID, job := range wf.Jobs {
+		// Check if this job has read-only permissions (reduces severity).
+		perms := effectivePermissions(wf, job)
+		readOnly := isReadOnlyPermissions(perms)
+
 		for _, step := range job.Steps {
 			if step.Uses == "" {
 				continue
@@ -780,6 +815,10 @@ func (e *Engine) checkRGS007(wf *parser.Workflow) []Finding {
 				// No ref at all — flag it
 				f := e.makeFinding("RGS-007", wf, jobID, step,
 					"Third-party action with no version pin: "+step.Uses)
+				if readOnly {
+					f.Severity = "low"
+					f.Evidence += " (job has read-only permissions, reducing impact)"
+				}
 				findings = append(findings, f)
 				continue
 			}
@@ -788,6 +827,10 @@ func (e *Engine) checkRGS007(wf *parser.Workflow) []Finding {
 			if !shaPattern.MatchString(ref) {
 				f := e.makeFinding("RGS-007", wf, jobID, step,
 					"Third-party action pinned to mutable ref '"+ref+"': "+step.Uses)
+				if readOnly {
+					f.Severity = "low"
+					f.Evidence += " (job has read-only permissions, reducing impact)"
+				}
 				findings = append(findings, f)
 			}
 		}

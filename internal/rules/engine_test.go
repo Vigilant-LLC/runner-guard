@@ -843,3 +843,205 @@ jobs:
 	require.NotEmpty(t, vxs001)
 	assert.Equal(t, "This is a demo context for RGS-001", vxs001[0].DemoContext)
 }
+
+// ---------------------------------------------------------------------------
+// Permissions helpers
+// ---------------------------------------------------------------------------
+
+func TestIsReadOnlyPermissions_Empty(t *testing.T) {
+	// Empty permissions = default (broad access) = NOT read-only.
+	assert.False(t, isReadOnlyPermissions(map[string]string{}))
+}
+
+func TestIsReadOnlyPermissions_ReadAll(t *testing.T) {
+	assert.True(t, isReadOnlyPermissions(map[string]string{"_all": "read-all"}))
+}
+
+func TestIsReadOnlyPermissions_WriteAll(t *testing.T) {
+	assert.False(t, isReadOnlyPermissions(map[string]string{"_all": "write-all"}))
+}
+
+func TestIsReadOnlyPermissions_ScopedReadOnly(t *testing.T) {
+	perms := map[string]string{
+		"contents": "read",
+		"packages": "read",
+	}
+	assert.True(t, isReadOnlyPermissions(perms))
+}
+
+func TestIsReadOnlyPermissions_ScopedWithWrite(t *testing.T) {
+	perms := map[string]string{
+		"contents":       "read",
+		"security-events": "write",
+	}
+	assert.False(t, isReadOnlyPermissions(perms))
+}
+
+func TestIsReadOnlyPermissions_ScopedNone(t *testing.T) {
+	perms := map[string]string{
+		"contents": "none",
+	}
+	assert.True(t, isReadOnlyPermissions(perms))
+}
+
+func TestEffectivePermissions_JobOverridesWorkflow(t *testing.T) {
+	wf := &parser.Workflow{
+		Permissions: map[string]string{"_all": "write-all"},
+	}
+	job := &parser.Job{
+		Permissions: map[string]string{"contents": "read"},
+	}
+	perms := effectivePermissions(wf, job)
+	assert.Equal(t, "read", perms["contents"])
+	assert.Empty(t, perms["_all"]) // job override, no _all key
+}
+
+func TestEffectivePermissions_FallsBackToWorkflow(t *testing.T) {
+	wf := &parser.Workflow{
+		Permissions: map[string]string{"_all": "read-all"},
+	}
+	job := &parser.Job{
+		Permissions: map[string]string{},
+	}
+	perms := effectivePermissions(wf, job)
+	assert.Equal(t, "read-all", perms["_all"])
+}
+
+// ---------------------------------------------------------------------------
+// RGS-007: Unpinned Third-Party Action - Permissions Severity Downgrade
+// ---------------------------------------------------------------------------
+
+func TestRGS007_UnpinnedAction_MediumSeverity(t *testing.T) {
+	wf := mustParseWorkflow(t, ".github/workflows/ci.yml", `
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: some-org/some-action@v1
+`)
+	e := NewEngineWithDefaults()
+	findings := e.Evaluate([]*parser.Workflow{wf})
+
+	var rgs007 []Finding
+	for _, f := range findings {
+		if f.RuleID == "RGS-007" {
+			rgs007 = append(rgs007, f)
+		}
+	}
+	require.Len(t, rgs007, 1)
+	assert.Equal(t, "medium", rgs007[0].Severity)
+}
+
+func TestRGS007_UnpinnedAction_ReadOnlyPerms_LowSeverity(t *testing.T) {
+	wf := mustParseWorkflow(t, ".github/workflows/ci.yml", `
+name: CI
+on: push
+permissions: read-all
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: some-org/some-action@v1
+`)
+	e := NewEngineWithDefaults()
+	findings := e.Evaluate([]*parser.Workflow{wf})
+
+	var rgs007 []Finding
+	for _, f := range findings {
+		if f.RuleID == "RGS-007" {
+			rgs007 = append(rgs007, f)
+		}
+	}
+	require.Len(t, rgs007, 1)
+	assert.Equal(t, "low", rgs007[0].Severity)
+	assert.Contains(t, rgs007[0].Evidence, "read-only permissions")
+}
+
+func TestRGS007_UnpinnedAction_JobScopedReadPerms_LowSeverity(t *testing.T) {
+	wf := mustParseWorkflow(t, ".github/workflows/ci.yml", `
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: some-org/some-action@v1
+`)
+	e := NewEngineWithDefaults()
+	findings := e.Evaluate([]*parser.Workflow{wf})
+
+	var rgs007 []Finding
+	for _, f := range findings {
+		if f.RuleID == "RGS-007" {
+			rgs007 = append(rgs007, f)
+		}
+	}
+	require.Len(t, rgs007, 1)
+	assert.Equal(t, "low", rgs007[0].Severity)
+}
+
+func TestRGS007_UnpinnedAction_JobWriteOverridesWorkflowRead(t *testing.T) {
+	wf := mustParseWorkflow(t, ".github/workflows/ci.yml", `
+name: CI
+on: push
+permissions: read-all
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: some-org/some-action@v1
+`)
+	e := NewEngineWithDefaults()
+	findings := e.Evaluate([]*parser.Workflow{wf})
+
+	var rgs007 []Finding
+	for _, f := range findings {
+		if f.RuleID == "RGS-007" {
+			rgs007 = append(rgs007, f)
+		}
+	}
+	require.Len(t, rgs007, 1)
+	assert.Equal(t, "medium", rgs007[0].Severity) // job has write, stays medium
+}
+
+func TestRGS007_PinnedAction_NoFinding(t *testing.T) {
+	wf := mustParseWorkflow(t, ".github/workflows/ci.yml", `
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: some-org/some-action@abc123def456abc123def456abc123def456abc1
+`)
+	e := NewEngineWithDefaults()
+	findings := e.Evaluate([]*parser.Workflow{wf})
+
+	for _, f := range findings {
+		assert.NotEqual(t, "RGS-007", f.RuleID)
+	}
+}
+
+func TestRGS007_FirstPartyAction_Skipped(t *testing.T) {
+	wf := mustParseWorkflow(t, ".github/workflows/ci.yml", `
+name: CI
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+`)
+	e := NewEngineWithDefaults()
+	findings := e.Evaluate([]*parser.Workflow{wf})
+
+	for _, f := range findings {
+		assert.NotEqual(t, "RGS-007", f.RuleID)
+	}
+}
