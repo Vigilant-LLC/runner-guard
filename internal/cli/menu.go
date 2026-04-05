@@ -151,25 +151,80 @@ func showBatchSubMenu(reader *bufio.Reader) string {
 	fmt.Println()
 	fmt.Println("Scan multiple repositories")
 	fmt.Println()
-	fmt.Println("  Enter the path to a file containing repo URLs or local paths,")
-	fmt.Println("  one per line. Lines starting with # are comments.")
+	fmt.Println("  a. Load from file")
+	fmt.Println("     Enter path to a file with repo URLs, one per line.")
 	fmt.Println()
-	fmt.Println("  Example repos.txt:")
-	fmt.Println("    github.com/owner/repo1")
-	fmt.Println("    github.com/owner/repo2")
-	fmt.Println("    /path/to/local/repo")
+	fmt.Println("  b. Enter repos manually")
+	fmt.Println("     Type repo URLs one per line, blank line when done.")
 	fmt.Println()
-	fmt.Print("  Path to repos file: ")
+	fmt.Print("Select (a/b): ")
 
 	input, err := reader.ReadString('\n')
 	if err != nil {
 		return ""
 	}
-	input = strings.TrimSpace(input)
-	if input == "" {
+	input = strings.TrimSpace(strings.ToLower(input))
+
+	switch input {
+	case "a", "":
+		fmt.Println()
+		fmt.Println("  Example repos.txt:")
+		fmt.Println("    github.com/owner/repo1")
+		fmt.Println("    github.com/owner/repo2")
+		fmt.Println("    /path/to/local/repo")
+		fmt.Println()
+		fmt.Print("  Path to repos file: ")
+
+		path, err := reader.ReadString('\n')
+		if err != nil {
+			return ""
+		}
+		path = strings.TrimSpace(path)
+		if path == "" {
+			return ""
+		}
+		return "batch:" + path
+
+	case "b":
+		fmt.Println()
+		fmt.Println("  Enter repo URLs one per line (blank line to start scanning):")
+		fmt.Println()
+
+		// Write repos to a temp file so the scan command can read it
+		tmpFile, err := os.CreateTemp("", "runner-guard-repos-*.txt")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating temp file: %v\n", err)
+			return ""
+		}
+
+		count := 0
+		for {
+			fmt.Print("  > ")
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				break
+			}
+			line = strings.TrimSpace(line)
+			if line == "" {
+				break
+			}
+			tmpFile.WriteString(line + "\n")
+			count++
+		}
+		tmpFile.Close()
+
+		if count == 0 {
+			os.Remove(tmpFile.Name())
+			return ""
+		}
+
+		fmt.Printf("\n  Scanning %d repos...\n", count)
+		return "batch:" + tmpFile.Name()
+
+	default:
+		fmt.Printf("\n  Invalid selection: %s\n", input)
 		return ""
 	}
-	return "batch:" + input
 }
 
 func showFixSubMenu(reader *bufio.Reader) string {
