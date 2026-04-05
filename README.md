@@ -52,7 +52,7 @@ Runner Guard uses a four-stage analysis pipeline:
 
 ## Features
 
-- **18 detection rules** covering fork checkout exploits, expression injection, secret exfiltration, unpinned actions, AI config injection, and supply chain steganography
+- **18 detection rules** covering fork checkout exploits, expression injection, secret exfiltration, unpinned actions, AI config injection, and supply chain steganography with permissions-aware severity (read-only jobs get reduced severity for unpinned action findings)
 - **31 threat signatures across 5 campaigns** -- GlassWorm, TeamPCP (Trivy/Checkmarx/LiteLLM), UNC1069/Axios, Telnyx, and general supply chain IOCs organized in `rules/signatures/` by threat actor
 - **Runner Guard Score** -- CI/CD security score (0-100) with letter grade and category breakdown (Pinning, Permissions, Injection, Triggers, IOCs) displayed after every scan
 - **Interactive CLI menu** -- run `runner-guard` with no arguments for a guided experience; power users use flags directly
@@ -239,7 +239,7 @@ runner-guard baseline update
 | RGS-004 | Privileged Trigger with Secrets and No Author Check | High | `issue_comment` or similar trigger with secrets access and no `author_association` or membership verification |
 | RGS-005 | Excessive Permissions on Untrusted Trigger | Medium | Write permissions granted on workflows triggered by external users |
 | RGS-006 | Dangerous Sink in Run Block | High | Remote script fetched and piped directly to shell interpreter (curl pipe bash) |
-| RGS-007 | Unpinned Third-Party Action | Medium | Action referenced by mutable tag instead of immutable commit SHA |
+| RGS-007 | Unpinned Third-Party Action | Medium/Low | Action referenced by mutable tag instead of immutable commit SHA. Severity downgrades to low when the job has read-only permissions. |
 | RGS-008 | Secrets Exposure in Run Block | Medium | Secret or token interpolated directly in `run:` block instead of passed via `env:` mapping |
 | RGS-009 | Fork Code Execution via Build Tools | Critical | Build tools (make, npm, pip, cargo) execute attacker-controlled code from fork checkout |
 | RGS-010 | AI Agent Config Poisoning via Fork PR | High | CLAUDE.md or similar AI config loaded from fork-controlled checkout |
@@ -311,7 +311,7 @@ Please also report false positives. Accuracy is critical for a security tool -- 
 
 ## About Vigilant
 
-[Vigilant](https://vigilantnow.com) is a cybersecurity company with 16 years of experience standing between organizations and the threats that want to destroy them. We don't believe in passive defense -- we operate with a warfare mindset, hunting threats before they become breaches.
+[Vigilant](https://vigilantdefense.com) is a cybersecurity company with 16 years of experience standing between organizations and the threats that want to destroy them. We don't believe in passive defense -- we operate with a warfare mindset, hunting threats before they become breaches.
 
 We built Runner Guard because we've weaponized these exact attack chains against banks, government agencies, and critical infrastructure in red team engagements. We know what these vulnerabilities look like from both sides of the wire. When autonomous AI agents started exploiting them at scale, we built the scanner we wished existed.
 
@@ -319,13 +319,13 @@ Our approach is built on three pillars:
 
 - **Forensically Validated Detection & Response (FVDR)** -- our proprietary methodology that treats every detection as evidence, not just an alert. We don't just find threats. We prove them, document them, and guarantee they're closed.
 
-- **[ThreatCert](https://vigilantnow.com)**, our attack surface intelligence platform. Where Runner Guard detects known pipeline injection patterns, ThreatCert maps your full external attack surface, models complete kill chains, and produces audit-ready evidence packages that satisfy regulators and boards, not just security teams.
+- **[ThreatCert](https://vigilantdefense.com)**, our attack surface intelligence platform. Where Runner Guard detects known pipeline injection patterns, ThreatCert maps your full external attack surface, models complete kill chains, and produces audit-ready evidence packages that satisfy regulators and boards, not just security teams.
 
-- **[CyberDNA](https://vigilantnow.com)**, our analysis workspace and the home of Vigilant's zero-breach guarantee. Where our analysts correlate pipeline findings, supply chain risk, and external exposure into a single forensic picture of your environment, and stand behind the outcome.
+- **[CyberDNA](https://vigilantdefense.com)**, our analysis workspace and the home of Vigilant's zero-breach guarantee. Where our analysts correlate pipeline findings, supply chain risk, and external exposure into a single forensic picture of your environment, and stand behind the outcome.
 
 Vigilant donates 25% of profit to organizations combating human trafficking and supporting orphan care worldwide.
 
-For enterprise support, custom rule development, or security assessments, visit [vigilantnow.com](https://vigilantnow.com).
+For enterprise support, custom rule development, or security assessments, visit [vigilantdefense.com](https://vigilantdefense.com).
 
 ---
 
