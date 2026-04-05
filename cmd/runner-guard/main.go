@@ -17,6 +17,7 @@ import (
 
 	runnerguard "github.com/Vigilant-LLC/runner-guard"
 	"github.com/Vigilant-LLC/runner-guard/internal/autofix"
+	"github.com/Vigilant-LLC/runner-guard/internal/batch"
 	"github.com/Vigilant-LLC/runner-guard/internal/cli"
 	"github.com/Vigilant-LLC/runner-guard/internal/config"
 	"github.com/Vigilant-LLC/runner-guard/internal/git"
@@ -108,6 +109,9 @@ func main() {
 		case strings.HasPrefix(selection, "scan:"):
 			path := strings.TrimPrefix(selection, "scan:")
 			os.Args = []string{os.Args[0], "scan", path}
+		case strings.HasPrefix(selection, "batch:"):
+			reposPath := strings.TrimPrefix(selection, "batch:")
+			os.Args = []string{os.Args[0], "scan", "--repos", reposPath}
 		case strings.HasPrefix(selection, "fix:"):
 			path := strings.TrimPrefix(selection, "fix:")
 			os.Args = []string{os.Args[0], "fix", path}
@@ -166,6 +170,8 @@ func newScanCmd() *cobra.Command {
 		noColor     bool
 		rulesFlag   string
 		groupFlag   string
+		reposFile   string
+		concurrency int
 	)
 
 	cmd := &cobra.Command{
@@ -177,9 +183,20 @@ and evaluates them against Runner Guard's built-in rule set.
 Path can be:
   - A local directory:     runner-guard scan .
   - A GitHub repository:   runner-guard scan github.com/owner/repo
-  - With a branch:         runner-guard scan github.com/owner/repo@main`,
-		Args: cobra.ExactArgs(1),
+  - With a branch:         runner-guard scan github.com/owner/repo@main
+  - Multiple repos:        runner-guard scan --repos repos.txt
+  - From stdin:            cat repos.txt | runner-guard scan --repos -`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Batch mode: --repos flag
+			if reposFile != "" {
+				return runBatchScan(reposFile, concurrency, failOn, format, noColor, output, rulesFlag, groupFlag)
+			}
+
+			if len(args) == 0 {
+				return fmt.Errorf("path argument required (or use --repos for batch scanning)")
+			}
+
 			start := time.Now()
 			path := args[0]
 
@@ -278,8 +295,80 @@ Path can be:
 	cmd.Flags().BoolVar(&noColor, "no-color", false, "Disable ANSI color output")
 	cmd.Flags().StringVar(&rulesFlag, "rules", "", "Run only specific rules (comma-separated, e.g. RGS-016,RGS-018)")
 	cmd.Flags().StringVar(&groupFlag, "group", "", "Run only rules in specific groups (comma-separated: injection, permissions, secrets, supply-chain, ai-config, steganography, debug)")
+	cmd.Flags().StringVar(&reposFile, "repos", "", "Path to file with repos to scan (one per line, or '-' for stdin)")
+	cmd.Flags().IntVar(&concurrency, "concurrency", 5, "Max concurrent scans for batch mode")
 
 	return cmd
+}
+
+// runBatchScan handles --repos batch scanning mode.
+func runBatchScan(reposFile string, concurrency int, failOn, format string, noColor bool, output, rulesFlag, groupFlag string) error {
+	start := time.Now()
+
+	if noColor || !isTTY() {
+		color.NoColor = true
+	}
+
+	printHeader(os.Stderr)
+
+	repos, err := batch.ParseRepoFile(reposFile)
+	if err != nil {
+		return err
+	}
+
+	if len(repos) == 0 {
+		fmt.Fprintln(os.Stderr, "No repos found in file")
+		return nil
+	}
+
+	fmt.Fprintf(os.Stderr, "Batch scanning %d repos (concurrency: %d)...\n\n", len(repos), concurrency)
+
+	cfg := batch.Config{
+		Repos:       repos,
+		Concurrency: concurrency,
+		FailOn:      failOn,
+		Format:      format,
+		NoColor:     noColor || !isTTY(),
+		RulesFS:     runnerguard.RulesFS,
+	}
+
+	if rulesFlag != "" {
+		cfg.RuleIDs = splitAndTrim(rulesFlag)
+	}
+	if groupFlag != "" {
+		cfg.Groups = splitAndTrim(groupFlag)
+	}
+
+	result := batch.Run(cfg)
+
+	// Select output destination.
+	var w io.Writer = os.Stdout
+	if output != "" {
+		f, err := os.Create(output)
+		if err != nil {
+			return fmt.Errorf("creating output file: %w", err)
+		}
+		defer f.Close()
+		w = f
+	}
+
+	duration := time.Since(start)
+
+	switch format {
+	case "json":
+		if err := batch.WriteJSONReport(w, result); err != nil {
+			return fmt.Errorf("writing JSON report: %w", err)
+		}
+	case "csv":
+		if err := batch.WriteCSVReport(w, result); err != nil {
+			return fmt.Errorf("writing CSV report: %w", err)
+		}
+	default:
+		batch.WriteConsoleReport(w, result, noColor || !isTTY(), duration)
+	}
+
+	os.Exit(result.ExitCode)
+	return nil
 }
 
 // ---------------------------------------------------------------------------

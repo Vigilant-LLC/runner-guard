@@ -24,9 +24,9 @@ type MenuOption struct {
 func ShowMenu() string {
 	options := []MenuOption{
 		{Label: "Scan a single repo (local or remote)", Available: true},
-		{Label: "Scan multiple repositories (from file)", Available: false, ComingSoon: "v2.6.1"},
-		{Label: "Check dependencies for known compromises", Available: false, ComingSoon: "v2.7.0"},
-		{Label: "Audit upstream dependency pipelines", Available: false, ComingSoon: "v2.8.0"},
+		{Label: "Scan multiple repositories (from file)", Available: true},
+		{Label: "Check dependencies for known compromises", Available: false, ComingSoon: "v2.8.0"},
+		{Label: "Audit upstream dependency pipelines", Available: false, ComingSoon: "v2.9.0"},
 		{Label: "Fix vulnerabilities (auto-pin + extract)", Available: true},
 		{Label: "Install pre-commit hook", Available: false, ComingSoon: "v3.0.0"},
 		{Label: "Generate Dependabot config", Available: false, ComingSoon: "v3.0.0"},
@@ -61,15 +61,13 @@ func ShowMenu() string {
 	case "1":
 		return showScanSubMenu(reader)
 	case "2":
-		fmt.Println("\n  Batch scanning is coming in v2.6.1.")
-		fmt.Println("  This will let you scan multiple repos from a file.")
-		return ""
+		return showBatchSubMenu(reader)
 	case "3":
-		fmt.Println("\n  Dependency checking is coming in v2.7.0.")
+		fmt.Println("\n  Dependency checking is coming in v2.8.0.")
 		fmt.Println("  This will check your lock files against known compromised packages.")
 		return ""
 	case "4":
-		fmt.Println("\n  Upstream pipeline audit is coming in v2.8.0.")
+		fmt.Println("\n  Upstream pipeline audit is coming in v2.9.0.")
 		fmt.Println("  This will scan the CI/CD pipelines of your upstream dependencies.")
 		return ""
 	case "5":
@@ -147,6 +145,31 @@ func showScanSubMenu(reader *bufio.Reader) string {
 		fmt.Printf("\n  Invalid selection: %s\n", input)
 		return ""
 	}
+}
+
+func showBatchSubMenu(reader *bufio.Reader) string {
+	fmt.Println()
+	fmt.Println("Scan multiple repositories")
+	fmt.Println()
+	fmt.Println("  Enter the path to a file containing repo URLs or local paths,")
+	fmt.Println("  one per line. Lines starting with # are comments.")
+	fmt.Println()
+	fmt.Println("  Example repos.txt:")
+	fmt.Println("    github.com/owner/repo1")
+	fmt.Println("    github.com/owner/repo2")
+	fmt.Println("    /path/to/local/repo")
+	fmt.Println()
+	fmt.Print("  Path to repos file: ")
+
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return ""
+	}
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return ""
+	}
+	return "batch:" + input
 }
 
 func showFixSubMenu(reader *bufio.Reader) string {
