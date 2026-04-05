@@ -54,6 +54,7 @@ Runner Guard uses a four-stage analysis pipeline:
 
 - **18 detection rules** covering fork checkout exploits, expression injection, secret exfiltration, unpinned actions, AI config injection, and supply chain steganography with permissions-aware severity (read-only jobs get reduced severity for unpinned action findings)
 - **31 threat signatures across 5 campaigns** -- GlassWorm, TeamPCP (Trivy/Checkmarx/LiteLLM), UNC1069/Axios, Telnyx, and general supply chain IOCs organized in `rules/signatures/` by threat actor
+- **Batch scanning** -- scan multiple repos from a file or stdin with `--repos`, parallel scanning with `--concurrency`, output as console summary table, JSON, or CSV
 - **Runner Guard Score** -- CI/CD security score (0-100) with letter grade and category breakdown (Pinning, Permissions, Injection, Triggers, IOCs) displayed after every scan
 - **Interactive CLI menu** -- run `runner-guard` with no arguments for a guided experience; power users use flags directly
 - **GlassWorm supply chain attack detection** -- Unicode steganography scanning, known IOC matching, and eval+decode payload pattern detection
@@ -179,6 +180,39 @@ runner-guard scan . --fail-on high
 ```
 
 **Rule groups:** `injection`, `permissions`, `secrets`, `supply-chain`, `ai-config`, `steganography`, `debug`
+
+### Batch scan multiple repos
+
+```bash
+# Scan repos from a file (one per line, # for comments)
+runner-guard scan --repos repos.txt
+
+# Read repos from stdin
+cat repos.txt | runner-guard scan --repos -
+echo "github.com/owner/repo" | runner-guard scan --repos -
+
+# Control concurrency (default: 5)
+runner-guard scan --repos repos.txt --concurrency 10
+
+# Output as JSON or CSV
+runner-guard scan --repos repos.txt --format json
+runner-guard scan --repos repos.txt --format csv --output results.csv
+
+# Fail if any repo has high or above
+runner-guard scan --repos repos.txt --fail-on high
+```
+
+Example `repos.txt`:
+```
+# Our dependencies
+github.com/axios/axios
+github.com/expressjs/express
+
+# Local repos
+/path/to/local/repo
+```
+
+Output includes a summary leaderboard with Runner Guard Score per repo, severity breakdown, and per-repo findings detail.
 
 ### Auto-fix workflows
 
