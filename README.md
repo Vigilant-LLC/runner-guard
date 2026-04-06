@@ -14,19 +14,19 @@ Runner Guard detects pipeline injection vulnerabilities, unpinned supply chain d
              │  Lock files / Remote URL  │
              └─────────────┬─────────────┘
                            │
-        ┌──────────────────┼──────────────────┐
-        ▼                  ▼                  ▼
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│ Workflow     │  │ check-deps   │  │ Batch Scan   │
-│ Scan         │  │              │  │              │
-│ Parse YAML   │  │ npm lockfile │  │ --repos file │
-│ Taint track  │  │ pip reqs.txt │  │ Parallel     │
-│ 18 rules     │  │ go.sum       │  │ Per-repo     │
-│ 31 IOC sigs  │  │ 41 known bad │  │ scoring      │
-└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
-       │                 │                 │
-       └─────────────────┼─────────────────┘
-                         ▼
+     ┌─────────────┬───────┼───────┬─────────────┐
+     ▼             ▼       ▼       ▼             ▼
+┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+│ Workflow │ │ check    │ │ audit    │ │ Batch    │
+│ Scan     │ │ -deps    │ │ -deps    │ │ Scan     │
+│          │ │          │ │          │ │          │
+│ 18 rules │ │ npm, pip │ │ Resolve  │ │ --repos  │
+│ 31 IOCs  │ │ go.sum   │ │ to repos │ │ Parallel │
+│ Taint    │ │ 41 known │ │ Scan CI  │ │ Scoring  │
+└────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘
+     │            │            │            │
+     └────────────┴─────┬──────┴────────────┘
+                        ▼
              ┌───────────────────────────┐
              │  Runner Guard Score       │
              │  0-100 / Letter grade     │
@@ -71,6 +71,7 @@ Pre-built binaries for Linux, macOS, and Windows (amd64/arm64) on the [Releases 
 - **18 detection rules** covering fork checkout exploits, expression injection, secret exfiltration, unpinned actions, AI config injection, and supply chain steganography with permissions-aware severity
 - **41 compromised package versions** across 13 confirmed supply chain attack campaigns (UNC1069/Axios, TeamPCP, npm debug/chalk, Solana web3.js, and more)
 - **31 threat signatures across 6 campaign files** -- GlassWorm, TeamPCP, UNC1069/Axios, Telnyx, and general supply chain IOCs
+- **Upstream pipeline audit** -- `audit-deps` resolves your dependencies to source repos and scans each repo's CI/CD pipeline, answering "are my dependencies' build pipelines secure?"
 - **Batch scanning** -- scan multiple repos from a file or stdin with `--repos`, parallel scanning with `--concurrency`, output as console summary table, JSON, or CSV
 - **Runner Guard Score** -- CI/CD security score (0-100) with letter grade and category breakdown (Pinning, Permissions, Injection, Triggers, IOCs)
 - **AI config injection detection** across Claude, GitHub Copilot, Cursor, and MCP tooling -- the first scanner to cover this attack surface
@@ -93,6 +94,14 @@ runner-guard scan .                              # local repo
 runner-guard scan github.com/owner/repo          # remote repo
 runner-guard scan . --format sarif --output r.sarif  # SARIF for GitHub Security tab
 runner-guard scan . --fail-on high               # CI gate
+```
+
+### Audit upstream dependency pipelines
+
+```bash
+runner-guard audit-deps .                        # scan upstream CI/CD pipelines
+runner-guard audit-deps . --format json          # JSON output
+runner-guard audit-deps . --concurrency 10       # parallel scanning
 ```
 
 ### Check for compromised packages

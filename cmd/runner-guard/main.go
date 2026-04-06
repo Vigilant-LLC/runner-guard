@@ -32,7 +32,7 @@ import (
 //
 //	go build -ldflags "-X main.version=1.0.0 -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 var (
-	version = "2.8.0"
+	version = "2.9.0"
 	commit  = "dev"
 	date    = "unknown"
 )
@@ -116,6 +116,9 @@ func main() {
 		case strings.HasPrefix(selection, "check-deps:"):
 			path := strings.TrimPrefix(selection, "check-deps:")
 			os.Args = []string{os.Args[0], "check-deps", path}
+		case strings.HasPrefix(selection, "audit-deps:"):
+			path := strings.TrimPrefix(selection, "audit-deps:")
+			os.Args = []string{os.Args[0], "audit-deps", path}
 		case strings.HasPrefix(selection, "fix:"):
 			path := strings.TrimPrefix(selection, "fix:")
 			os.Args = []string{os.Args[0], "fix", path}
@@ -131,6 +134,7 @@ func main() {
 	rootCmd.AddCommand(
 		newScanCmd(),
 		newCheckDepsCmd(),
+		newAuditDepsCmd(),
 		newDemoCmd(),
 		newBaselineCmd(),
 		newFixCmd(),
@@ -497,6 +501,231 @@ func writeDepFindings(w io.Writer, findings []deps.Finding, noColor bool) {
 func severityMeetsThreshold(severity, threshold string) bool {
 	levels := map[string]int{"low": 1, "medium": 2, "high": 3, "critical": 4}
 	return levels[severity] >= levels[threshold]
+}
+
+// ---------------------------------------------------------------------------
+// audit-deps command
+// ---------------------------------------------------------------------------
+
+func newAuditDepsCmd() *cobra.Command {
+	var (
+		format      string
+		failOn      string
+		output      string
+		noColor     bool
+		concurrency int
+		rulesFlag   string
+		groupFlag   string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "audit-deps [path]",
+		Short: "Audit upstream dependency CI/CD pipelines for vulnerabilities",
+		Long: `Resolves your project's dependencies to their source repositories and
+scans each repository's CI/CD pipeline for security vulnerabilities.
+
+Answers: "Are my dependencies' build pipelines secure?"
+
+Supported ecosystems: npm, PyPI, Go`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir := "."
+			if len(args) > 0 {
+				dir = args[0]
+			}
+
+			if noColor || !isTTY() {
+				color.NoColor = true
+			}
+
+			printHeader(os.Stderr)
+
+			cfg := deps.AuditConfig{
+				Dir:         dir,
+				Concurrency: concurrency,
+				FailOn:      failOn,
+				RulesFS:     runnerguard.RulesFS,
+			}
+
+			if rulesFlag != "" {
+				cfg.RuleIDs = splitAndTrim(rulesFlag)
+			}
+			if groupFlag != "" {
+				cfg.Groups = splitAndTrim(groupFlag)
+			}
+
+			results, err := deps.AuditUpstream(cfg)
+			if err != nil {
+				return err
+			}
+
+			if len(results) == 0 {
+				fmt.Fprintln(os.Stderr, "No dependencies with resolvable source repos found.")
+				return nil
+			}
+
+			// Select output destination.
+			var w io.Writer = os.Stdout
+			if output != "" {
+				f, err := os.Create(output)
+				if err != nil {
+					return fmt.Errorf("creating output file: %w", err)
+				}
+				defer f.Close()
+				w = f
+			}
+
+			if format == "json" {
+				enc := json.NewEncoder(w)
+				enc.SetIndent("", "  ")
+				enc.Encode(results)
+			} else {
+				writeAuditReport(w, results, noColor || !isTTY())
+			}
+
+			// Check fail-on threshold across all upstream findings.
+			for _, r := range results {
+				for _, f := range r.Findings {
+					if severityMeetsThreshold(f.Severity, failOn) {
+						os.Exit(1)
+					}
+				}
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&format, "format", "f", "console", "Output format: console, json")
+	cmd.Flags().StringVar(&failOn, "fail-on", "high", "Minimum severity to exit non-zero")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Write report to file")
+	cmd.Flags().BoolVar(&noColor, "no-color", false, "Disable ANSI color output")
+	cmd.Flags().IntVar(&concurrency, "concurrency", 5, "Max concurrent upstream scans")
+	cmd.Flags().StringVar(&rulesFlag, "rules", "", "Run only specific rules")
+	cmd.Flags().StringVar(&groupFlag, "group", "", "Run only rules in specific groups")
+
+	return cmd
+}
+
+func writeAuditReport(w io.Writer, results []deps.AuditResult, noColor bool) {
+	red := color.New(color.FgRed, color.Bold).SprintFunc()
+	yellow := color.New(color.FgYellow).SprintFunc()
+	green := color.New(color.FgGreen).SprintFunc()
+	cyan := color.New(color.FgCyan).SprintFunc()
+	white := color.New(color.FgWhite, color.Bold).SprintFunc()
+	gray := color.New(color.FgHiBlack).SprintFunc()
+
+	sep := strings.Repeat("\u2501", 70)
+
+	fmt.Fprintln(w, sep)
+	fmt.Fprintf(w, "%s\n", white("Upstream Pipeline Audit"))
+	fmt.Fprintln(w, sep)
+	fmt.Fprintln(w)
+
+	// Calculate column widths from data.
+	pkgWidth := 20
+	repoWidth := 15
+	for _, r := range results {
+		if len(r.Package) > pkgWidth {
+			pkgWidth = len(r.Package)
+		}
+		sr := shortRepo(r.Repo)
+		if len(sr) > repoWidth {
+			repoWidth = len(sr)
+		}
+	}
+	if pkgWidth > 40 {
+		pkgWidth = 40
+	}
+	if repoWidth > 30 {
+		repoWidth = 30
+	}
+
+	// Summary table.
+	fmtStr := fmt.Sprintf("%%-%ds  %%-%ds  %%6s  %%5s  %%6s\n", pkgWidth, repoWidth)
+	fmt.Fprintf(w, fmtStr, white("Package"), white("Repo"), white("Score"), white("Grade"), white("Issues"))
+	fmt.Fprintf(w, fmtStr, strings.Repeat("-", pkgWidth), strings.Repeat("-", repoWidth), "------", "-----", "------")
+
+	totalFindings := 0
+	cleanCount := 0
+	errorCount := 0
+
+	for _, r := range results {
+		if r.Error != "" {
+			if r.Error != "no workflows" {
+				fmt.Fprintf(w, fmtStr, r.Package, gray(shortRepo(r.Repo)), red("ERR"), "-", r.Error)
+				errorCount++
+			}
+			continue
+		}
+
+		findings := len(r.Findings)
+		totalFindings += findings
+
+		if findings == 0 {
+			cleanCount++
+		}
+
+		gradeColor := green
+		switch {
+		case r.Score.Total < 60:
+			gradeColor = red
+		case r.Score.Total < 80:
+			gradeColor = yellow
+		case r.Score.Total < 90:
+			gradeColor = cyan
+		}
+
+		issueStr := fmt.Sprintf("%d", findings)
+		if findings == 0 {
+			issueStr = green("0")
+		}
+
+		fmt.Fprintf(w, fmtStr,
+			r.Package,
+			gray(shortRepo(r.Repo)),
+			gradeColor(fmt.Sprintf("%d", r.Score.Total)),
+			gradeColor(r.Score.Grade),
+			issueStr,
+		)
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, sep)
+
+	scanned := len(results) - errorCount
+	fmt.Fprintf(w, "%d upstream pipelines scanned, %d findings, %d clean\n", scanned, totalFindings, cleanCount)
+	fmt.Fprintln(w, sep)
+
+	// Detail for repos with findings.
+	for _, r := range results {
+		if len(r.Findings) == 0 || r.Error != "" {
+			continue
+		}
+
+		fmt.Fprintln(w)
+		fmt.Fprintf(w, "%s %s (%s) - score %d/100 %s\n",
+			white(">>"), white(r.Package), gray(r.Repo), r.Score.Total, r.Score.Grade)
+
+		for _, f := range r.Findings {
+			sev := strings.ToUpper(f.Severity)
+			switch strings.ToLower(f.Severity) {
+			case "critical":
+				sev = red(sev)
+			case "high":
+				sev = red(sev)
+			case "medium":
+				sev = yellow(sev)
+			case "low":
+				sev = cyan(sev)
+			}
+			fmt.Fprintf(w, "  [%s] %s %s - %s\n", sev, f.RuleID, gray(f.File), f.RuleName)
+		}
+	}
+}
+
+func shortRepo(repo string) string {
+	return strings.TrimPrefix(repo, "github.com/")
 }
 
 // ---------------------------------------------------------------------------

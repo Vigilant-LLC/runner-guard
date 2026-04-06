@@ -26,7 +26,7 @@ func ShowMenu() string {
 		{Label: "Scan a single repo (local or remote)", Available: true},
 		{Label: "Scan multiple repositories (from file)", Available: true},
 		{Label: "Check dependencies for known compromises", Available: true},
-		{Label: "Audit upstream dependency pipelines", Available: false, ComingSoon: "v2.9.0"},
+		{Label: "Audit upstream dependency pipelines", Available: true},
 		{Label: "Fix vulnerabilities (auto-pin + extract)", Available: true},
 		{Label: "Install pre-commit hook", Available: false, ComingSoon: "v3.0.0"},
 		{Label: "Generate Dependabot config", Available: false, ComingSoon: "v3.0.0"},
@@ -65,9 +65,7 @@ func ShowMenu() string {
 	case "3":
 		return showCheckDepsSubMenu(reader)
 	case "4":
-		fmt.Println("\n  Upstream pipeline audit is coming in v2.9.0.")
-		fmt.Println("  This will scan the CI/CD pipelines of your upstream dependencies.")
-		return ""
+		return showAuditDepsSubMenu(reader)
 	case "5":
 		return showFixSubMenu(reader)
 	case "6":
@@ -143,6 +141,27 @@ func showScanSubMenu(reader *bufio.Reader) string {
 		fmt.Printf("\n  Invalid selection: %s\n", input)
 		return ""
 	}
+}
+
+func showAuditDepsSubMenu(reader *bufio.Reader) string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error getting current directory: %v\n", err)
+		return ""
+	}
+	absPath, _ := filepath.Abs(cwd)
+	fmt.Printf("\n  Audit upstream pipelines for: %s\n", absPath)
+	fmt.Println("  This will resolve your dependencies to their source repos and scan")
+	fmt.Println("  each repo's CI/CD pipeline for vulnerabilities.")
+	fmt.Println("  Requires internet access for registry lookups and GitHub API calls.")
+	fmt.Print("  Continue? (Y/n): ")
+
+	confirm, _ := reader.ReadString('\n')
+	confirm = strings.TrimSpace(strings.ToLower(confirm))
+	if confirm == "n" || confirm == "no" {
+		return ""
+	}
+	return "audit-deps:."
 }
 
 func showCheckDepsSubMenu(reader *bufio.Reader) string {
