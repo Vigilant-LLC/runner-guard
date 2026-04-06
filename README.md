@@ -55,6 +55,7 @@ Runner Guard uses a four-stage analysis pipeline:
 - **18 detection rules** covering fork checkout exploits, expression injection, secret exfiltration, unpinned actions, AI config injection, and supply chain steganography with permissions-aware severity (read-only jobs get reduced severity for unpinned action findings)
 - **31 threat signatures across 5 campaigns** -- GlassWorm, TeamPCP (Trivy/Checkmarx/LiteLLM), UNC1069/Axios, Telnyx, and general supply chain IOCs organized in `rules/signatures/` by threat actor
 - **Batch scanning** -- scan multiple repos from a file or stdin with `--repos`, parallel scanning with `--concurrency`, output as console summary table, JSON, or CSV
+- **Dependency checking** -- `check-deps` command scans lock files (package-lock.json, requirements.txt, go.sum) against 41 known compromised package versions from 12 confirmed supply chain attack campaigns including UNC1069/Axios, TeamPCP, npm debug/chalk, Solana web3.js, and more
 - **Runner Guard Score** -- CI/CD security score (0-100) with letter grade and category breakdown (Pinning, Permissions, Injection, Triggers, IOCs) displayed after every scan
 - **Interactive CLI menu** -- run `runner-guard` with no arguments for a guided experience; power users use flags directly
 - **GlassWorm supply chain attack detection** -- Unicode steganography scanning, known IOC matching, and eval+decode payload pattern detection
@@ -213,6 +214,24 @@ github.com/expressjs/express
 ```
 
 Output includes a summary leaderboard with Runner Guard Score per repo, severity breakdown, and per-repo findings detail.
+
+### Check dependencies for compromised packages
+
+```bash
+# Check current directory for compromised packages
+runner-guard check-deps .
+
+# Check a specific project
+runner-guard check-deps /path/to/project
+
+# JSON output for CI integration
+runner-guard check-deps . --format json
+
+# Fail on any severity (for CI gates)
+runner-guard check-deps . --fail-on low
+```
+
+Scans `package-lock.json` (npm), `requirements.txt` (PyPI), and `go.sum` (Go) against a database of 41 known compromised package versions from 12 confirmed supply chain attack campaigns. Automatically skips `node_modules`, `.git`, `vendor`, and virtual environment directories.
 
 ### Auto-fix workflows
 
