@@ -25,7 +25,7 @@ func ShowMenu() string {
 	options := []MenuOption{
 		{Label: "Scan a single repo (local or remote)", Available: true},
 		{Label: "Scan multiple repositories (from file)", Available: true},
-		{Label: "Check dependencies for known compromises", Available: false, ComingSoon: "v2.8.0"},
+		{Label: "Check dependencies for known compromises", Available: true},
 		{Label: "Audit upstream dependency pipelines", Available: false, ComingSoon: "v2.9.0"},
 		{Label: "Fix vulnerabilities (auto-pin + extract)", Available: true},
 		{Label: "Install pre-commit hook", Available: false, ComingSoon: "v3.0.0"},
@@ -63,9 +63,7 @@ func ShowMenu() string {
 	case "2":
 		return showBatchSubMenu(reader)
 	case "3":
-		fmt.Println("\n  Dependency checking is coming in v2.8.0.")
-		fmt.Println("  This will check your lock files against known compromised packages.")
-		return ""
+		return showCheckDepsSubMenu(reader)
 	case "4":
 		fmt.Println("\n  Upstream pipeline audit is coming in v2.9.0.")
 		fmt.Println("  This will scan the CI/CD pipelines of your upstream dependencies.")
@@ -145,6 +143,26 @@ func showScanSubMenu(reader *bufio.Reader) string {
 		fmt.Printf("\n  Invalid selection: %s\n", input)
 		return ""
 	}
+}
+
+func showCheckDepsSubMenu(reader *bufio.Reader) string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error getting current directory: %v\n", err)
+		return ""
+	}
+	absPath, _ := filepath.Abs(cwd)
+	fmt.Printf("\n  Check dependencies in: %s\n", absPath)
+	fmt.Println("  This will scan lock files (package-lock.json, requirements.txt, go.sum)")
+	fmt.Println("  against known compromised package versions.")
+	fmt.Print("  Continue? (Y/n): ")
+
+	confirm, _ := reader.ReadString('\n')
+	confirm = strings.TrimSpace(strings.ToLower(confirm))
+	if confirm == "n" || confirm == "no" {
+		return ""
+	}
+	return "check-deps:."
 }
 
 func showBatchSubMenu(reader *bufio.Reader) string {

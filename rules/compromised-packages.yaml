@@ -1,0 +1,439 @@
+# Compromised Package Database
+# Known malicious package versions from confirmed supply chain attacks.
+# Updated as new compromises are confirmed.
+#
+# Format:
+#   - name: package name as it appears in the registry
+#     ecosystem: npm | pypi | go
+#     versions: list of compromised version strings
+#     campaign: threat actor or campaign name
+#     date: date of compromise (YYYY-MM-DD)
+#     severity: critical | high
+#     description: brief description of the compromise
+#     references: list of URLs
+
+packages:
+  # ==========================================================================
+  # 2026 - Active Campaign
+  # ==========================================================================
+
+  # === UNC1069 / Axios Campaign (March 2026) ===
+  - name: axios
+    ecosystem: npm
+    versions:
+      - "1.14.1"
+      - "0.30.4"
+    campaign: UNC1069
+    date: "2026-03-30"
+    severity: critical
+    description: "Cross-platform RAT deployed via compromised maintainer account. Attributed to North Korean threat actor UNC1069."
+
+  - name: plain-crypto-js
+    ecosystem: npm
+    versions:
+      - "*"
+    campaign: UNC1069
+    date: "2026-03-30"
+    severity: critical
+    description: "Malicious dependency published as part of the Axios supply chain attack. Postinstall script deploys RAT."
+
+  # === TeamPCP Campaign (March 2026) ===
+  - name: litellm
+    ecosystem: pypi
+    versions:
+      - "1.82.7"
+      - "1.82.8"
+    campaign: TeamPCP
+    date: "2026-03-19"
+    severity: critical
+    description: "AI gateway compromised via maintainer account. C2 domain: models.litellm.cloud."
+
+  - name: telnyx
+    ecosystem: pypi
+    versions:
+      - "4.87.1"
+      - "4.87.2"
+    campaign: TeamPCP
+    date: "2026-03-24"
+    severity: critical
+    description: "Communications SDK compromised with WAV steganography persistence. C2 via AES-256-CBC/RSA-4096 encrypted exfiltration."
+
+  - name: trivy
+    ecosystem: pypi
+    versions:
+      - "0.69.4"
+    campaign: TeamPCP
+    date: "2026-03-15"
+    severity: critical
+    description: "Security scanner compromised. Led to Cisco breach with 300+ repos stolen."
+
+  # === dYdX Phantom Packages (Feb 2026) ===
+  - name: openapi-generator-cli
+    ecosystem: npm
+    versions:
+      - "*"
+    campaign: dYdX-phantom
+    date: "2026-02-01"
+    severity: critical
+    description: "Phantom package delivering wallet stealers and RAT malware. Part of dYdX naming campaign."
+
+  # ==========================================================================
+  # 2025
+  # ==========================================================================
+
+  # === npm Debug/Chalk Mass Compromise (September 2025) ===
+  - name: debug
+    ecosystem: npm
+    versions:
+      - "4.4.2"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Maintainer account phished via fake npmjs.help domain. Cryptostealer targeting MetaMask and web3 wallets. 47M weekly downloads."
+
+  - name: chalk
+    ecosystem: npm
+    versions:
+      - "5.6.1"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Maintainer account phished. Cryptostealer targeting cryptocurrency wallets. 299M weekly downloads."
+
+  - name: color-name
+    ecosystem: npm
+    versions:
+      - "2.0.1"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  - name: strip-ansi
+    ecosystem: npm
+    versions:
+      - "7.1.1"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  - name: color
+    ecosystem: npm
+    versions:
+      - "5.0.1"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  - name: color-convert
+    ecosystem: npm
+    versions:
+      - "3.1.1"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  - name: color-string
+    ecosystem: npm
+    versions:
+      - "2.1.1"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  - name: has-ansi
+    ecosystem: npm
+    versions:
+      - "6.0.1"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  - name: ansi-styles
+    ecosystem: npm
+    versions:
+      - "6.2.2"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  - name: ansi-regex
+    ecosystem: npm
+    versions:
+      - "6.2.1"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  - name: supports-color
+    ecosystem: npm
+    versions:
+      - "10.2.1"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  - name: backslash
+    ecosystem: npm
+    versions:
+      - "0.2.1"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  - name: wrap-ansi
+    ecosystem: npm
+    versions:
+      - "9.0.1"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  - name: is-arrayish
+    ecosystem: npm
+    versions:
+      - "0.3.3"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  - name: error-ex
+    ecosystem: npm
+    versions:
+      - "1.3.3"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  - name: slice-ansi
+    ecosystem: npm
+    versions:
+      - "7.1.1"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  - name: chalk-template
+    ecosystem: npm
+    versions:
+      - "1.1.1"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  - name: simple-swizzle
+    ecosystem: npm
+    versions:
+      - "0.2.3"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  - name: supports-hyperlinks
+    ecosystem: npm
+    versions:
+      - "4.1.1"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of debug/chalk supply chain attack."
+
+  # === DuckDB npm Compromise (September 2025) ===
+  - name: duckdb
+    ecosystem: npm
+    versions:
+      - "1.3.3"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised via second account in debug/chalk attack wave."
+
+  - name: "@duckdb/node-api"
+    ecosystem: npm
+    versions:
+      - "1.3.3"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of DuckDB npm attack."
+
+  - name: "@duckdb/node-bindings"
+    ecosystem: npm
+    versions:
+      - "1.3.3"
+    campaign: npm-debug-chalk
+    date: "2025-09-08"
+    severity: critical
+    description: "Compromised as part of DuckDB npm attack."
+
+  # ==========================================================================
+  # 2024
+  # ==========================================================================
+
+  # === Solana web3.js (December 2024) ===
+  - name: "@solana/web3.js"
+    ecosystem: npm
+    versions:
+      - "1.95.6"
+      - "1.95.7"
+    campaign: solana-web3
+    date: "2024-12-03"
+    severity: critical
+    description: "Maintainer account phished. Backdoor exfiltrated private keys to attacker wallet. $190K+ stolen."
+
+  # === Lottie Player (October 2024) ===
+  - name: "@lottiefiles/lottie-player"
+    ecosystem: npm
+    versions:
+      - "2.0.5"
+      - "2.0.6"
+      - "2.0.7"
+    campaign: lottie-player
+    date: "2024-10-31"
+    severity: critical
+    description: "NPM automation token compromised, bypassing 2FA. Injected crypto wallet drainer. 94K weekly downloads."
+
+  # ==========================================================================
+  # 2022
+  # ==========================================================================
+
+  # === node-ipc Protestware (March 2022) ===
+  - name: node-ipc
+    ecosystem: npm
+    versions:
+      - "10.1.1"
+      - "10.1.2"
+      - "10.1.3"
+    campaign: node-ipc
+    date: "2022-03-15"
+    severity: critical
+    description: "Maintainer injected protestware targeting Russian and Belarusian IP addresses. Overwrote files."
+
+  # === ctx/phpass PyPI Hijack (May 2022) ===
+  - name: ctx
+    ecosystem: pypi
+    versions:
+      - "0.2.6"
+    campaign: ctx-phpass
+    date: "2022-05-24"
+    severity: critical
+    description: "Hijacked abandoned package. Credential stealer targeting AWS keys and environment variables."
+
+  - name: phpass
+    ecosystem: pypi
+    versions:
+      - "0.9.99"
+    campaign: ctx-phpass
+    date: "2022-05-24"
+    severity: critical
+    description: "Hijacked abandoned package. Credential stealer."
+
+  # === colors/faker Sabotage (January 2022) ===
+  - name: colors
+    ecosystem: npm
+    versions:
+      - "1.4.1"
+      - "1.4.2"
+    campaign: colors-faker
+    date: "2022-01-08"
+    severity: high
+    description: "Maintainer sabotage. Infinite loop introduced."
+
+  - name: faker
+    ecosystem: npm
+    versions:
+      - "6.6.6"
+    campaign: colors-faker
+    date: "2022-01-08"
+    severity: high
+    description: "Maintainer sabotage. Package emptied."
+
+  # ==========================================================================
+  # 2021
+  # ==========================================================================
+
+  # === coa/rc Compromise (November 2021) ===
+  - name: coa
+    ecosystem: npm
+    versions:
+      - "2.0.3"
+      - "2.0.4"
+      - "2.1.1"
+      - "2.1.3"
+      - "3.0.1"
+      - "3.1.3"
+    campaign: coa-rc
+    date: "2021-11-04"
+    severity: critical
+    description: "Compromised maintainer account. Credential stealer."
+
+  - name: rc
+    ecosystem: npm
+    versions:
+      - "1.2.9"
+      - "1.3.9"
+      - "2.3.9"
+    campaign: coa-rc
+    date: "2021-11-04"
+    severity: critical
+    description: "Compromised maintainer account. Credential stealer."
+
+  # === ua-parser-js (October 2021) ===
+  - name: ua-parser-js
+    ecosystem: npm
+    versions:
+      - "0.7.29"
+      - "0.8.0"
+      - "1.0.0"
+    campaign: ua-parser-js
+    date: "2021-10-22"
+    severity: critical
+    description: "Compromised maintainer account. Cryptominer and credential stealer. 8M weekly downloads."
+
+  # === Codecov (April 2021) ===
+  - name: codecov
+    ecosystem: pypi
+    versions:
+      - "2.1.13"
+    campaign: codecov
+    date: "2021-04-01"
+    severity: critical
+    description: "Bash uploader script modified to exfiltrate CI environment variables and secrets."
+
+  # ==========================================================================
+  # 2018
+  # ==========================================================================
+
+  # === event-stream (November 2018) ===
+  - name: event-stream
+    ecosystem: npm
+    versions:
+      - "3.3.6"
+    campaign: event-stream
+    date: "2018-11-26"
+    severity: critical
+    description: "Maintainer handoff attack. Malicious flatmap-stream dependency targeting cryptocurrency wallets."
+
+  - name: flatmap-stream
+    ecosystem: npm
+    versions:
+      - "0.1.1"
+    campaign: event-stream
+    date: "2018-11-26"
+    severity: critical
+    description: "Malicious package injected via event-stream. Targeted Copay Bitcoin wallet."

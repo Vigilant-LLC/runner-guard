@@ -169,6 +169,6 @@ func printFooter(w io.Writer, sep string) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, sep)
 	fmt.Fprintln(w, "Need forensic validation & remediation assurance?")
-	fmt.Fprintln(w, "\u2192 Vigilant Pipeline Assessment: vigilantnow.com")
+	fmt.Fprintln(w, "\u2192 Vigilant Pipeline Assessment: vigilantdefense.com")
 	fmt.Fprintln(w, sep)
 }

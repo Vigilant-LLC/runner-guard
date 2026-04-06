@@ -19,6 +19,7 @@ import (
 	"github.com/Vigilant-LLC/runner-guard/internal/autofix"
 	"github.com/Vigilant-LLC/runner-guard/internal/batch"
 	"github.com/Vigilant-LLC/runner-guard/internal/cli"
+	"github.com/Vigilant-LLC/runner-guard/internal/deps"
 	"github.com/Vigilant-LLC/runner-guard/internal/config"
 	"github.com/Vigilant-LLC/runner-guard/internal/git"
 	ghclient "github.com/Vigilant-LLC/runner-guard/internal/github"
@@ -31,7 +32,7 @@ import (
 //
 //	go build -ldflags "-X main.version=1.0.0 -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 var (
-	version = "2.7.0"
+	version = "2.8.0"
 	commit  = "dev"
 	date    = "unknown"
 )
@@ -112,6 +113,9 @@ func main() {
 		case strings.HasPrefix(selection, "batch:"):
 			reposPath := strings.TrimPrefix(selection, "batch:")
 			os.Args = []string{os.Args[0], "scan", "--repos", reposPath}
+		case strings.HasPrefix(selection, "check-deps:"):
+			path := strings.TrimPrefix(selection, "check-deps:")
+			os.Args = []string{os.Args[0], "check-deps", path}
 		case strings.HasPrefix(selection, "fix:"):
 			path := strings.TrimPrefix(selection, "fix:")
 			os.Args = []string{os.Args[0], "fix", path}
@@ -126,6 +130,7 @@ func main() {
 
 	rootCmd.AddCommand(
 		newScanCmd(),
+		newCheckDepsCmd(),
 		newDemoCmd(),
 		newBaselineCmd(),
 		newFixCmd(),
@@ -369,6 +374,129 @@ func runBatchScan(reposFile string, concurrency int, failOn, format string, noCo
 
 	os.Exit(result.ExitCode)
 	return nil
+}
+
+// ---------------------------------------------------------------------------
+// check-deps command
+// ---------------------------------------------------------------------------
+
+func newCheckDepsCmd() *cobra.Command {
+	var (
+		format  string
+		failOn  string
+		output  string
+		noColor bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "check-deps [path]",
+		Short: "Check dependencies for known compromised packages",
+		Long: `Scans lock files (package-lock.json, requirements.txt, go.sum) in the
+given directory and checks installed packages against a database of known
+compromised versions from confirmed supply chain attacks.
+
+Supported ecosystems: npm, PyPI, Go`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir := "."
+			if len(args) > 0 {
+				dir = args[0]
+			}
+
+			if noColor || !isTTY() {
+				color.NoColor = true
+			}
+
+			printHeader(os.Stderr)
+
+			// Load the compromised packages database.
+			db, err := deps.LoadDatabase(runnerguard.RulesFS)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(os.Stderr, "Loaded %d compromised package entries\n", len(db.Packages))
+			fmt.Fprintf(os.Stderr, "Scanning %s for lock files...\n", dir)
+
+			findings, err := deps.CheckDependencies(dir, db)
+			if err != nil {
+				return err
+			}
+
+			// Select output destination.
+			var w io.Writer = os.Stdout
+			if output != "" {
+				f, err := os.Create(output)
+				if err != nil {
+					return fmt.Errorf("creating output file: %w", err)
+				}
+				defer f.Close()
+				w = f
+			}
+
+			if format == "json" {
+				enc := json.NewEncoder(w)
+				enc.SetIndent("", "  ")
+				enc.Encode(findings)
+			} else {
+				writeDepFindings(w, findings, noColor || !isTTY())
+			}
+
+			if len(findings) == 0 {
+				fmt.Fprintln(os.Stderr, "\nNo compromised packages detected.")
+				return nil
+			}
+
+			// Check fail-on threshold.
+			for _, f := range findings {
+				if severityMeetsThreshold(f.Package.Severity, failOn) {
+					os.Exit(1)
+				}
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&format, "format", "f", "console", "Output format: console, json")
+	cmd.Flags().StringVar(&failOn, "fail-on", "high", "Minimum severity to exit non-zero: low, medium, high, critical")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Write report to file")
+	cmd.Flags().BoolVar(&noColor, "no-color", false, "Disable ANSI color output")
+
+	return cmd
+}
+
+func writeDepFindings(w io.Writer, findings []deps.Finding, noColor bool) {
+	if len(findings) == 0 {
+		return
+	}
+
+	red := color.New(color.FgRed, color.Bold).SprintFunc()
+	yellow := color.New(color.FgYellow).SprintFunc()
+	white := color.New(color.FgWhite, color.Bold).SprintFunc()
+
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "%s\n", white("Compromised Packages Detected"))
+	fmt.Fprintln(w)
+
+	for _, f := range findings {
+		sev := red("CRITICAL")
+		if f.Package.Severity == "high" {
+			sev = yellow("HIGH")
+		}
+
+		fmt.Fprintf(w, "  [%s] %s@%s\n", sev, f.Installed.Name, f.Installed.Version)
+		fmt.Fprintf(w, "    Campaign:  %s (%s)\n", f.Package.Campaign, f.Package.Date)
+		fmt.Fprintf(w, "    Lock file: %s\n", f.Installed.LockFile)
+		fmt.Fprintf(w, "    %s\n", f.Package.Description)
+		fmt.Fprintln(w)
+	}
+
+	fmt.Fprintf(w, "Total: %d compromised package(s) found\n", len(findings))
+}
+
+func severityMeetsThreshold(severity, threshold string) bool {
+	levels := map[string]int{"low": 1, "medium": 2, "high": 3, "critical": 4}
+	return levels[severity] >= levels[threshold]
 }
 
 // ---------------------------------------------------------------------------
