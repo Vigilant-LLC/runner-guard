@@ -9,42 +9,42 @@
 Runner Guard detects pipeline injection vulnerabilities, unpinned supply chain dependencies, AI configuration poisoning, and invisible steganographic payloads in GitHub Actions workflows. It checks your installed packages against known compromised versions, scans multiple repos in parallel, and auto-fixes what it finds.
 
 ```
-                ┌─────────────────────────┐
-                │ Workflow YAML / Repos   │
-                │ Lock files / Remote URL │
-                └────────────┬────────────┘
-                             │
-          ┌──────────────────┼──────────────────┐
-          ▼                  ▼                   ▼
- ┌─────────────────┐ ┌──────────────┐ ┌─────────────────┐
- │ Workflow Scan    │ │ check-deps   │ │ Batch Scan      │
- │                  │ │              │ │                  │
- │ Parse YAML      │ │ npm lockfile │ │ --repos file     │
- │ Taint analysis  │ │ pip reqs.txt │ │ Parallel scans   │
- │ 18 rules        │ │ go.sum       │ │ Per-repo scoring │
- │ 31 IOC sigs     │ │ 41 known bad │ │                  │
- └────────┬────────┘ └──────┬───────┘ └────────┬────────┘
-          │                  │                   │
-          └──────────────────┼───────────────────┘
-                             ▼
-                ┌─────────────────────────┐
-                │ Runner Guard Score      │
-                │ 0-100 with letter grade │
-                │ Pinning / Permissions / │
-                │ Injection / Triggers /  │
-                │ IOCs                    │
-                └────────────┬────────────┘
-                             ▼
-          ┌──────────────────┼──────────────────┐
-          ▼                  ▼                   ▼
- ┌─────────────────┐ ┌──────────────┐ ┌─────────────────┐
- │ Report          │ │ Auto-Fix     │ │ CI Gate         │
- │                  │ │              │ │                  │
- │ Console + color │ │ Pin to SHAs  │ │ --fail-on high  │
- │ JSON            │ │ Extract to   │ │ SARIF upload    │
- │ SARIF           │ │ env mappings │ │ Exit code       │
- │ CSV             │ │              │ │                  │
- └─────────────────┘ └──────────────┘ └─────────────────┘
+             ┌───────────────────────────┐
+             │  Workflow YAML / Repos    │
+             │  Lock files / Remote URL  │
+             └─────────────┬─────────────┘
+                           │
+        ┌──────────────────┼──────────────────┐
+        ▼                  ▼                  ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│ Workflow     │  │ check-deps   │  │ Batch Scan   │
+│ Scan         │  │              │  │              │
+│ Parse YAML   │  │ npm lockfile │  │ --repos file │
+│ Taint track  │  │ pip reqs.txt │  │ Parallel     │
+│ 18 rules     │  │ go.sum       │  │ Per-repo     │
+│ 31 IOC sigs  │  │ 41 known bad │  │ scoring      │
+└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+       │                 │                 │
+       └─────────────────┼─────────────────┘
+                         ▼
+             ┌───────────────────────────┐
+             │  Runner Guard Score       │
+             │  0-100 / Letter grade     │
+             │  Pinning / Permissions /  │
+             │  Injection / Triggers /   │
+             │  IOCs                     │
+             └─────────────┬─────────────┘
+                           │
+        ┌──────────────────┼──────────────────┐
+        ▼                  ▼                  ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│ Report       │  │ Auto-Fix     │  │ CI Gate      │
+│              │  │              │  │              │
+│ Console      │  │ Pin to SHAs  │  │ --fail-on    │
+│ JSON         │  │ Extract to   │  │ SARIF upload │
+│ SARIF        │  │ env mappings │  │ Exit code    │
+│ CSV          │  │              │  │              │
+└──────────────┘  └──────────────┘  └──────────────┘
 ```
 
 ---
