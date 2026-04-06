@@ -4,34 +4,31 @@
 [![Release](https://img.shields.io/github/v/release/Vigilant-LLC/runner-guard)](https://github.com/Vigilant-LLC/runner-guard/releases)
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://go.dev)
 
-**CI/CD source-to-sink vulnerability scanner for GitHub Actions**
+**CI/CD supply chain security scanner for GitHub Actions**
 
 Runner Guard detects pipeline injection vulnerabilities, unpinned supply chain dependencies, AI configuration poisoning, and invisible steganographic payloads in GitHub Actions workflows. It checks your installed packages against known compromised versions, scans multiple repos in parallel, and auto-fixes what it finds.
 
 ```
-                    ┌─────────────────┐
-                    │  Workflow YAML   │
-                    └────────┬────────┘
-                             ▼
-              ┌──────────────────────────┐
-              │   Parser                 │  Triggers, permissions, jobs,
-              │   (YAML → structured)    │  steps, expressions, actions
-              └──────────┬───────────────┘
-                         ▼
-              ┌──────────────────────────┐
-              │   Source-to-Sink Tracker  │  Attacker inputs → shell sinks
-              │   (taint analysis)       │  via expressions, env, outputs
-              └──────────┬───────────────┘
-                         ▼
-              ┌──────────────────────────┐
-              │   Rule Engine            │  18 rules + 31 IOC signatures
-              │   (detect + classify)    │  + 41 compromised packages
-              └──────────┬───────────────┘
-                         ▼
-              ┌──────────────────────────┐
-              │   Reporter               │  Console, JSON, SARIF, CSV
-              │   (output + score)       │  Runner Guard Score (0-100)
-              └──────────────────────────┘
+  ┌──────────────────────────────────────────────────────────────┐
+  │                      Runner Guard                            │
+  ├──────────────────────────────────────────────────────────────┤
+  │                                                              │
+  │  Workflow Scanner          Dependency Checker    Auto-Fix    │
+  │  ┌────────────────┐       ┌────────────────┐   ┌─────────┐ │
+  │  │ Parse YAML     │       │ Parse lockfiles │   │ Pin SHAs│ │
+  │  │ Taint analysis │       │ npm, pip, go    │   │ Extract │ │
+  │  │ 18 rules       │       │ 41 compromised  │   │ to env  │ │
+  │  │ 31 IOC sigs    │       │ package versions│   │ mapping │ │
+  │  └────────────────┘       └────────────────┘   └─────────┘ │
+  │                                                              │
+  │  Batch Scanner             Scoring             Reporter     │
+  │  ┌────────────────┐       ┌────────────────┐   ┌─────────┐ │
+  │  │ --repos file   │       │ Score 0-100    │   │ Console │ │
+  │  │ Parallel scans │       │ Letter grade   │   │ JSON    │ │
+  │  │ CSV leaderboard│       │ 5 categories   │   │ SARIF   │ │
+  │  └────────────────┘       └────────────────┘   └─────────┘ │
+  │                                                              │
+  └──────────────────────────────────────────────────────────────┘
 ```
 
 ---
