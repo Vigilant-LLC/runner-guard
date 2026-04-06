@@ -145,9 +145,34 @@ Pre-built binaries for Linux, macOS, and Windows (amd64/arm64) are available on 
 
 ## Usage
 
-![Runner Guard Scan](docs/scan-clean.gif)
+### Interactive menu
+
+Run `runner-guard` with no arguments for a guided experience:
+
+![Interactive Menu](docs/menu-demo.gif)
+
+```
+$ runner-guard
+
+Runner Guard — CI/CD Security Scanner v2.8.0
+
+What would you like to do?
+
+  1. Scan a single repo (local or remote)
+  2. Scan multiple repositories (from file)
+  3. Check dependencies for known compromises
+  4. Audit upstream dependency pipelines  [Coming in v2.9.0]
+  5. Fix vulnerabilities (auto-pin + extract)
+  6. Install pre-commit hook  [Coming in v3.0.0]
+  7. Generate Dependabot config  [Coming in v3.0.0]
+  8. Run demo (vulnerable workflow examples)
+
+Select (1-8):
+```
 
 ### Scan workflows
+
+![Runner Guard Scan](docs/scan-clean.gif)
 
 **Important:** When given a directory, Runner Guard first looks for `.github/workflows/` and scans all YAML files there. If that directory doesn't exist, it **recursively scans all `.yml`/`.yaml` files** under the given path. Always point it at a specific repository root or workflows directory -- never at `/`, `~`, or other broad system paths.
 
@@ -184,6 +209,8 @@ runner-guard scan . --fail-on high
 
 ### Batch scan multiple repos
 
+![Batch Scan](docs/batch-demo.gif)
+
 ```bash
 # Scan repos from a file (one per line, # for comments)
 runner-guard scan --repos repos.txt
@@ -216,6 +243,8 @@ github.com/expressjs/express
 Output includes a summary leaderboard with Runner Guard Score per repo, severity breakdown, and per-repo findings detail.
 
 ### Check dependencies for compromised packages
+
+![Check Dependencies](docs/check-deps-demo.gif)
 
 ```bash
 # Check current directory for compromised packages
