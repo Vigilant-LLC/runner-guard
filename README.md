@@ -57,7 +57,7 @@ Runner Guard uses a four-stage analysis pipeline:
 - **Batch scanning** -- scan multiple repos from a file or stdin with `--repos`, parallel scanning with `--concurrency`, output as console summary table, JSON, or CSV
 - **Dependency checking** -- `check-deps` command scans lock files (package-lock.json, requirements.txt, go.sum) against 41 known compromised package versions from 12 confirmed supply chain attack campaigns including UNC1069/Axios, TeamPCP, npm debug/chalk, Solana web3.js, and more
 - **Runner Guard Score** -- CI/CD security score (0-100) with letter grade and category breakdown (Pinning, Permissions, Injection, Triggers, IOCs) displayed after every scan
-- **Interactive CLI menu** -- run `runner-guard` with no arguments for a guided experience; power users use flags directly
+- **Interactive CLI menu** -- run `runner-guard` with no arguments for a guided experience with single repo scan, batch scanning, dependency checking, auto-fix, and demo scenarios; power users use flags directly
 - **GlassWorm supply chain attack detection** -- Unicode steganography scanning, known IOC matching, and eval+decode payload pattern detection
 - **AI config injection detection** across Claude, GitHub Copilot, Cursor, and MCP tooling -- the first scanner to cover this attack surface
 - **Source-to-sink vulnerability scanning** tracing attacker-controlled inputs through expressions, environment variables, and step outputs to dangerous sinks
