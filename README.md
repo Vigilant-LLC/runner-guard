@@ -315,7 +315,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Vigilant-LLC/runner-guard@c9c54b94d557cfecfc2331b4594d07c07fdbbc0d # v2.7.0
+      - uses: Vigilant-LLC/runner-guard@d80646c2af65ace4f57e0a8f0568eacfed76ed71 # v2.8.0
         with:
           fail-on: high
           sarif-upload: 'true'
