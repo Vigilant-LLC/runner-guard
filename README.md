@@ -20,9 +20,10 @@ Runner Guard detects pipeline injection vulnerabilities, unpinned supply chain d
 │ Workflow │ │ check    │ │ audit    │ │ Batch    │
 │ Scan     │ │ -deps    │ │ -deps    │ │ Scan     │
 │          │ │          │ │          │ │          │
-│ 18 rules │ │ npm, pip │ │ Resolve  │ │ --repos  │
-│ 31 IOCs  │ │ go.sum   │ │ to repos │ │ Parallel │
-│ Taint    │ │ 41 known │ │ Scan CI  │ │ Scoring  │
+│ Taint    │ │ Lock     │ │ Resolve  │ │ Multi-   │
+│ Perms    │ │ files    │ │ deps to  │ │ repo     │
+│ IOCs     │ │ Known    │ │ repos    │ │ Parallel │
+│          │ │ bad vers │ │ Scan CI  │ │ Scoring  │
 └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘
      │            │            │            │
      └────────────┴─────┬──────┴────────────┘
@@ -38,12 +39,10 @@ Runner Guard detects pipeline injection vulnerabilities, unpinned supply chain d
         ┌──────────────────┼──────────────────┐
         ▼                  ▼                  ▼
 ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│ Report       │  │ Auto-Fix     │  │ CI Gate      │
+│   Report     │  │  Auto-Fix    │  │   CI Gate    │
 │              │  │              │  │              │
-│ Console      │  │ Pin to SHAs  │  │ --fail-on    │
-│ JSON         │  │ Extract to   │  │ SARIF upload │
-│ SARIF        │  │ env mappings │  │ Exit code    │
-│ CSV          │  │              │  │              │
+│ Console/JSON │  │ Pin actions  │  │ Pass / Fail  │
+│ SARIF / CSV  │  │ Extract envs │  │ SARIF upload │
 └──────────────┘  └──────────────┘  └──────────────┘
 ```
 
