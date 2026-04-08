@@ -407,11 +407,22 @@ func printConsoleAlerts(alerts []Alert) {
 	fmt.Println()
 }
 
+// requireHTTPS validates that a webhook URL uses HTTPS.
+// Returns an error if the URL is empty, not HTTPS, or malformed.
+func requireHTTPS(webhookURL, alertMode string) error {
+	if webhookURL == "" {
+		return fmt.Errorf("no webhook URL configured (use --webhook-url or RUNNER_GUARD_WEBHOOK_URL env var)")
+	}
+	if !strings.HasPrefix(webhookURL, "https://") {
+		return fmt.Errorf("%s webhook URL must use HTTPS (got %q)", alertMode, webhookURL)
+	}
+	return nil
+}
+
 // sendSlackAlerts posts alerts to a Slack webhook.
 func sendSlackAlerts(alerts []Alert, webhookURL string) {
-	if webhookURL == "" {
-		fmt.Fprintf(os.Stderr, "Warning: --webhook-url not set, falling back to console\n")
-		printConsoleAlerts(alerts)
+	if err := requireHTTPS(webhookURL, "slack"); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
 		return
 	}
 
@@ -499,8 +510,8 @@ func sendPagerDutyAlerts(alerts []Alert) {
 // sendWebhookAlerts posts alerts as JSON to a generic webhook URL.
 // Compatible with Opsgenie or any HTTP endpoint that accepts JSON.
 func sendWebhookAlerts(alerts []Alert, webhookURL string) {
-	if webhookURL == "" {
-		fmt.Fprintf(os.Stderr, "Warning: no webhook URL configured (use --webhook-url or RUNNER_GUARD_WEBHOOK_URL env var)\n")
+	if err := requireHTTPS(webhookURL, "webhook"); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
 		return
 	}
 

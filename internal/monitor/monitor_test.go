@@ -146,3 +146,24 @@ func TestResolveWebhookURL(t *testing.T) {
 	cfg2 := Config{}
 	assert.Equal(t, "https://env.example.com/hook", resolveWebhookURL(cfg2))
 }
+
+func TestRequireHTTPS(t *testing.T) {
+	// Valid HTTPS URL.
+	assert.NoError(t, requireHTTPS("https://hooks.slack.com/services/T00/B00/xxx", "slack"))
+	assert.NoError(t, requireHTTPS("https://events.pagerduty.com/v2/enqueue", "webhook"))
+
+	// Empty URL.
+	err := requireHTTPS("", "slack")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no webhook URL configured")
+
+	// HTTP (not HTTPS) -- must be rejected.
+	err = requireHTTPS("http://example.com/hook", "webhook")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "must use HTTPS")
+
+	// Other schemes rejected.
+	err = requireHTTPS("ftp://example.com/hook", "slack")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "must use HTTPS")
+}
