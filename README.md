@@ -54,6 +54,9 @@ Runner Guard detects pipeline injection vulnerabilities, unpinned supply chain d
 # Homebrew (macOS/Linux)
 brew install Vigilant-LLC/tap/runner-guard
 
+# Docker
+docker pull ghcr.io/vigilant-llc/runner-guard:latest
+
 # One-liner (macOS/Linux)
 curl -sSfL https://raw.githubusercontent.com/Vigilant-LLC/runner-guard/main/install.sh | bash
 
@@ -71,7 +74,7 @@ Pre-built binaries for Linux, macOS, and Windows (amd64/arm64) on the [Releases 
 - **41 compromised package versions** across 13 confirmed supply chain attack campaigns (UNC1069/Axios, TeamPCP, npm debug/chalk, Solana web3.js, and more)
 - **31 threat signatures across 6 campaign files** -- GlassWorm, TeamPCP, UNC1069/Axios, Telnyx, and general supply chain IOCs
 - **Upstream pipeline audit** -- `audit-deps` resolves your dependencies to source repos and scans each repo's CI/CD pipeline, answering "are my dependencies' build pipelines secure?"
-- **Continuous monitoring** -- `monitor` polls npm and PyPI registries for new releases of your dependencies, alerts on compromised versions and IOC signature matches via console, Slack, or generic webhook
+- **Continuous monitoring** -- `monitor` polls npm and PyPI registries for new releases of your dependencies, alerts on compromised versions and IOC signature matches via console, Slack, PagerDuty, or generic webhook
 - **Org-wide scanning** -- `scan --org myorg` enumerates all public repos in a GitHub organization and scans them in parallel
 - **Batch scanning** -- scan multiple repos from a file or stdin with `--repos`, parallel scanning with `--concurrency`, output as console summary table, JSON, or CSV
 - **Runner Guard Score** -- CI/CD security score (0-100) with letter grade and category breakdown (Pinning, Permissions, Injection, Triggers, IOCs)
@@ -80,6 +83,7 @@ Pre-built binaries for Linux, macOS, and Windows (amd64/arm64) on the [Releases 
 - **Interactive CLI menu** -- run `runner-guard` with no arguments for a guided experience
 - **SARIF output** for native GitHub Code Scanning integration
 - **Remote scanning** -- scan any public GitHub repo by URL without cloning
+- **Docker image** -- 10MB distroless container on `ghcr.io/vigilant-llc/runner-guard`
 - **Single binary** -- zero dependencies, all rules embedded, runs anywhere Go compiles
 
 ---
@@ -134,8 +138,17 @@ cat repos.txt | runner-guard scan --repos -      # from stdin
 runner-guard monitor .                           # watch for new compromised releases
 runner-guard monitor . --interval 60             # poll every 60 seconds
 runner-guard monitor . --alert slack --webhook-url https://hooks.slack.com/...
+runner-guard monitor . --alert pagerduty         # uses RUNNER_GUARD_PAGERDUTY_KEY env var
 runner-guard monitor . --alert webhook           # POST JSON to RUNNER_GUARD_WEBHOOK_URL
 ```
+
+**Environment variables for alerting:**
+
+| Variable | Description |
+|----------|-------------|
+| `RUNNER_GUARD_WEBHOOK_URL` | Webhook URL for Slack or generic webhook alerts |
+| `RUNNER_GUARD_PAGERDUTY_KEY` | PagerDuty Events API v2 routing key |
+| `GITHUB_TOKEN` | GitHub API token for higher rate limits (5,000 req/hr vs 60) |
 
 ### Scan an entire organization
 
@@ -151,6 +164,20 @@ runner-guard scan --org myorg --concurrency 10 --format csv
 ```bash
 runner-guard fix .                               # pin actions + extract expressions
 runner-guard fix . --dry-run                     # preview changes
+```
+
+### Docker
+
+```bash
+# Scan a local repo
+docker run -v $(pwd):/app ghcr.io/vigilant-llc/runner-guard scan /app
+
+# Remote scan
+docker run ghcr.io/vigilant-llc/runner-guard scan github.com/owner/repo
+
+# Monitor with PagerDuty alerts
+docker run -e RUNNER_GUARD_PAGERDUTY_KEY=R012345... \
+  -v $(pwd):/app ghcr.io/vigilant-llc/runner-guard monitor /app
 ```
 
 ### Interactive menu
