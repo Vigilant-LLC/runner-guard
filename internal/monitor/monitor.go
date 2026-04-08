@@ -388,6 +388,8 @@ func dispatchAlerts(alerts []Alert, cfg Config) {
 		sendSlackAlerts(alerts, url)
 	case "webhook":
 		sendWebhookAlerts(alerts, url)
+	case "pagerduty":
+		sendPagerDutyAlerts(alerts)
 	}
 }
 
@@ -427,8 +429,75 @@ func sendSlackAlerts(alerts []Alert, webhookURL string) {
 	}
 }
 
+// sendPagerDutyAlerts sends alerts to PagerDuty Events API v2.
+// Reads the routing key from RUNNER_GUARD_PAGERDUTY_KEY env var.
+// Each alert is sent as a separate PagerDuty event.
+func sendPagerDutyAlerts(alerts []Alert) {
+	routingKey := os.Getenv("RUNNER_GUARD_PAGERDUTY_KEY")
+	if routingKey == "" {
+		fmt.Fprintf(os.Stderr, "Warning: RUNNER_GUARD_PAGERDUTY_KEY env var not set\n")
+		return
+	}
+
+	const endpoint = "https://events.pagerduty.com/v2/enqueue"
+
+	for _, a := range alerts {
+		pdSeverity := "warning"
+		switch strings.ToLower(a.Severity) {
+		case "critical":
+			pdSeverity = "critical"
+		case "high":
+			pdSeverity = "error"
+		case "medium":
+			pdSeverity = "warning"
+		case "low":
+			pdSeverity = "info"
+		}
+
+		event := map[string]interface{}{
+			"routing_key":  routingKey,
+			"event_action": "trigger",
+			"dedup_key":    fmt.Sprintf("runner-guard-%s-%s-%s", a.Ecosystem, a.Package, a.NewVersion),
+			"payload": map[string]interface{}{
+				"summary":   fmt.Sprintf("Runner Guard: %s@%s (%s) — %s", a.Package, a.NewVersion, a.Ecosystem, a.Detail),
+				"severity":  pdSeverity,
+				"source":    "runner-guard",
+				"component": a.Package,
+				"group":     a.Ecosystem,
+				"custom_details": map[string]string{
+					"package":      a.Package,
+					"ecosystem":    a.Ecosystem,
+					"old_version":  a.OldVersion,
+					"new_version":  a.NewVersion,
+					"signature":    a.Signature,
+					"detail":       a.Detail,
+				},
+			},
+		}
+
+		payload, err := json.Marshal(event)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to marshal PagerDuty event: %v\n", err)
+			continue
+		}
+
+		resp, err := httpClient.Post(endpoint, "application/json", strings.NewReader(string(payload)))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: PagerDuty alert failed: %v\n", err)
+			continue
+		}
+		resp.Body.Close()
+
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			fmt.Fprintf(os.Stderr, "PagerDuty alert sent: %s@%s\n", a.Package, a.NewVersion)
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: PagerDuty returned status %d\n", resp.StatusCode)
+		}
+	}
+}
+
 // sendWebhookAlerts posts alerts as JSON to a generic webhook URL.
-// Compatible with PagerDuty, Opsgenie, or any HTTP endpoint that accepts JSON.
+// Compatible with Opsgenie or any HTTP endpoint that accepts JSON.
 func sendWebhookAlerts(alerts []Alert, webhookURL string) {
 	if webhookURL == "" {
 		fmt.Fprintf(os.Stderr, "Warning: no webhook URL configured (use --webhook-url or RUNNER_GUARD_WEBHOOK_URL env var)\n")

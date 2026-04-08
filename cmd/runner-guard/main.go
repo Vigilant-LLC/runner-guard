@@ -837,7 +837,8 @@ or appears in the compromised packages database.
 Examples:
   runner-guard monitor .                           # monitor deps in current dir
   runner-guard monitor . --interval 60             # poll every 60 seconds
-  runner-guard monitor . --alert slack --webhook-url https://hooks.slack.com/...`,
+  runner-guard monitor . --alert slack --webhook-url https://hooks.slack.com/...
+  runner-guard monitor . --alert pagerduty          # uses RUNNER_GUARD_PAGERDUTY_KEY env var`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := "."
@@ -861,7 +862,7 @@ Examples:
 	}
 
 	cmd.Flags().IntVar(&interval, "interval", 300, "Poll interval in seconds (default: 300)")
-	cmd.Flags().StringVar(&alertMode, "alert", "console", "Alert mode: console, slack, webhook")
+	cmd.Flags().StringVar(&alertMode, "alert", "console", "Alert mode: console, slack, webhook, pagerduty")
 	cmd.Flags().StringVar(&webhookURL, "webhook-url", "", "Webhook URL for alerts (or set RUNNER_GUARD_WEBHOOK_URL env var)")
 	cmd.Flags().IntVar(&concurrency, "concurrency", 5, "Max concurrent registry checks")
 
