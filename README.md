@@ -99,6 +99,8 @@ runner-guard scan . --fail-on high               # CI gate
 
 ### Audit upstream dependency pipelines
 
+![Audit Dependencies](docs/audit-deps-demo.gif)
+
 ```bash
 runner-guard audit-deps .                        # scan upstream CI/CD pipelines
 runner-guard audit-deps . --format json          # JSON output
@@ -126,6 +128,8 @@ cat repos.txt | runner-guard scan --repos -      # from stdin
 
 ### Monitor dependencies
 
+![Monitor Dependencies](docs/monitor-demo.gif)
+
 ```bash
 runner-guard monitor .                           # watch for new compromised releases
 runner-guard monitor . --interval 60             # poll every 60 seconds
@@ -134,6 +138,8 @@ runner-guard monitor . --alert webhook           # POST JSON to RUNNER_GUARD_WEB
 ```
 
 ### Scan an entire organization
+
+![Org Scan](docs/org-scan-demo.gif)
 
 ```bash
 runner-guard scan --org myorg                    # all public repos in org
