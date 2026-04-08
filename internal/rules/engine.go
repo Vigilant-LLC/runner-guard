@@ -16,19 +16,19 @@ import (
 
 // Finding represents a single security finding produced by the rule engine.
 type Finding struct {
-	RuleID         string
-	RuleName       string
-	Severity       string
-	File           string
-	JobID          string
-	StepName       string
-	LineNumber     int
-	Description    string
-	Evidence       string // the specific YAML snippet or expression that triggered it
-	AttackScenario string
-	Fix            string
-	References     []string
-	DemoContext     string // populated only in demo mode
+	RuleID         string   `json:"rule_id"`
+	RuleName       string   `json:"name"`
+	Severity       string   `json:"severity"`
+	File           string   `json:"file"`
+	JobID          string   `json:"job_id"`
+	StepName       string   `json:"step_name"`
+	LineNumber     int      `json:"line"`
+	Description    string   `json:"description"`
+	Evidence       string   `json:"evidence"`
+	AttackScenario string   `json:"attack_scenario"`
+	Fix            string   `json:"fix"`
+	References     []string `json:"references"`
+	DemoContext    string   `json:"demo_context,omitempty"`
 }
 
 // ThreatSignature represents a single IOC pattern loaded from signatures.yaml.
