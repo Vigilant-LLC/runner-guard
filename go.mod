@@ -1,4 +1,4 @@
-module github.com/Vigilant-LLC/runner-guard
+module github.com/Vigilant-LLC/runner-guard/v3
 
 go 1.24
 

@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Vigilant-LLC/runner-guard/internal/parser"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/parser"
 )
 
 // Tier1Sources contains fully attacker-controlled expression fragments.

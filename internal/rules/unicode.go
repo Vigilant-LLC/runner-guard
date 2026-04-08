@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Vigilant-LLC/runner-guard/internal/parser"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/parser"
 )
 
 // ---------------------------------------------------------------------------

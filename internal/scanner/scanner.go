@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Vigilant-LLC/runner-guard/internal/config"
-	"github.com/Vigilant-LLC/runner-guard/internal/parser"
-	"github.com/Vigilant-LLC/runner-guard/internal/rules"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/config"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/parser"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/rules"
 )
 
 // Config holds every tuneable knob for a single scan invocation.

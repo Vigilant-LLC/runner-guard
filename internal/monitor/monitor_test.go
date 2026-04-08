@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Vigilant-LLC/runner-guard/internal/deps"
-	"github.com/Vigilant-LLC/runner-guard/internal/rules"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/deps"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/rules"
 
-	runnerguard "github.com/Vigilant-LLC/runner-guard"
+	runnerguard "github.com/Vigilant-LLC/runner-guard/v3"
 )
 
 func TestMatchSignatures_IOCPackage(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Vigilant-LLC/runner-guard/internal/rules"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/rules"
 )
 
 // Score represents a CI/CD security score for a scanned repository.

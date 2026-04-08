@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/Vigilant-LLC/runner-guard/internal/rules"
-	"github.com/Vigilant-LLC/runner-guard/internal/score"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/rules"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/score"
 )
 
 // ReportConsole writes color-coded findings to the provided writer.

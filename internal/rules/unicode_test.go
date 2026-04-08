@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	runnerguard "github.com/Vigilant-LLC/runner-guard"
+	runnerguard "github.com/Vigilant-LLC/runner-guard/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/Vigilant-LLC/runner-guard/internal/parser"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/parser"
 )
 
 // ---------------------------------------------------------------------------

@@ -15,25 +15,25 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	runnerguard "github.com/Vigilant-LLC/runner-guard"
-	"github.com/Vigilant-LLC/runner-guard/internal/autofix"
-	"github.com/Vigilant-LLC/runner-guard/internal/batch"
-	"github.com/Vigilant-LLC/runner-guard/internal/cli"
-	"github.com/Vigilant-LLC/runner-guard/internal/config"
-	"github.com/Vigilant-LLC/runner-guard/internal/deps"
-	"github.com/Vigilant-LLC/runner-guard/internal/git"
-	ghclient "github.com/Vigilant-LLC/runner-guard/internal/github"
-	"github.com/Vigilant-LLC/runner-guard/internal/monitor"
-	"github.com/Vigilant-LLC/runner-guard/internal/reporter"
-	"github.com/Vigilant-LLC/runner-guard/internal/rules"
-	"github.com/Vigilant-LLC/runner-guard/internal/scanner"
+	runnerguard "github.com/Vigilant-LLC/runner-guard/v3"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/autofix"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/batch"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/cli"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/config"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/deps"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/git"
+	ghclient "github.com/Vigilant-LLC/runner-guard/v3/internal/github"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/monitor"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/reporter"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/rules"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/scanner"
 )
 
 // Build-time variables injected via ldflags:
 //
 //	go build -ldflags "-X main.version=1.0.0 -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 var (
-	version = "3.0.2"
+	version = "3.1.0"
 	commit  = "dev"
 	date    = "unknown"
 )

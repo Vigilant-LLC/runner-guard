@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/Vigilant-LLC/runner-guard/internal/rules"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/rules"
 )
 
 func TestCalculate_PerfectScore(t *testing.T) {

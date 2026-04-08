@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	ghclient "github.com/Vigilant-LLC/runner-guard/internal/github"
-	"github.com/Vigilant-LLC/runner-guard/internal/rules"
-	"github.com/Vigilant-LLC/runner-guard/internal/scanner"
-	"github.com/Vigilant-LLC/runner-guard/internal/score"
+	ghclient "github.com/Vigilant-LLC/runner-guard/v3/internal/github"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/rules"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/scanner"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/score"
 )
 
 // AuditResult holds the scan result for one upstream dependency's pipeline.

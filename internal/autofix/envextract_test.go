@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Vigilant-LLC/runner-guard/internal/taint"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/taint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

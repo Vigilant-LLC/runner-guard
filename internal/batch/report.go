@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/Vigilant-LLC/runner-guard/internal/score"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/score"
 )
 
 // WriteConsoleReport writes a human-readable batch scan report.

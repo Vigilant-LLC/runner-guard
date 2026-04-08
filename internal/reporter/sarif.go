@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Vigilant-LLC/runner-guard/internal/rules"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/rules"
 )
 
 // ---------- SARIF 2.1.0 types ----------

@@ -16,8 +16,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Vigilant-LLC/runner-guard/internal/deps"
-	"github.com/Vigilant-LLC/runner-guard/internal/rules"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/deps"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/rules"
 )
 
 // Config holds monitor configuration.

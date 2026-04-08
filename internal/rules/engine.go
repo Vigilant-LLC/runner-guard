@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Vigilant-LLC/runner-guard/internal/parser"
-	"github.com/Vigilant-LLC/runner-guard/internal/taint"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/parser"
+	"github.com/Vigilant-LLC/runner-guard/v3/internal/taint"
 	"gopkg.in/yaml.v3"
 )
 
