@@ -1,6 +1,6 @@
 module github.com/Vigilant-LLC/runner-guard/v3
 
-go 1.24
+go 1.26
 
 require (
 	github.com/fatih/color v1.16.0

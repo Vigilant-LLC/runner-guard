@@ -1,3 +1,5 @@
+version: 2
+
 project_name: runner-guard
 
 before:
@@ -11,11 +13,14 @@ builds:
     binary: runner-guard
     env:
       - CGO_ENABLED=0
+    flags:
+      - -trimpath
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
       - -X main.commit={{.ShortCommit}}
       - -X main.date={{.Date}}
+      - -X github.com/Vigilant-LLC/runner-guard/v3/internal/cli.Version={{.Version}}
     goos:
       - linux
       - darwin
@@ -25,11 +30,13 @@ builds:
       - arm64
 
 archives:
-  - format: tar.gz
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
 
 checksum:
   name_template: "checksums.txt"
@@ -44,6 +51,9 @@ changelog:
       - "^ci:"
       - "^chore:"
 
+# Using brews (deprecated in v2.10 but still functional).
+# homebrew_casks is the replacement but designed for GUI apps.
+# Will migrate when GoReleaser stabilizes cask support for CLI binaries.
 brews:
   - repository:
       owner: Vigilant-LLC
@@ -51,7 +61,7 @@ brews:
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Formula
     homepage: "https://github.com/Vigilant-LLC/runner-guard"
-    description: "CI/CD source-to-sink vulnerability scanner for GitHub Actions"
+    description: "CI/CD supply chain security scanner for GitHub Actions"
     license: "AGPL-3.0"
     install: |
       bin.install "runner-guard"
