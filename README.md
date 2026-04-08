@@ -2,7 +2,7 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/Vigilant-LLC/runner-guard)](https://github.com/Vigilant-LLC/runner-guard/releases)
-[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://go.dev)
+[![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go)](https://go.dev)
 
 **CI/CD supply chain security scanner for GitHub Actions**
 
@@ -63,7 +63,7 @@ docker pull ghcr.io/vigilant-llc/runner-guard:latest
 curl -sSfL https://raw.githubusercontent.com/Vigilant-LLC/runner-guard/main/install.sh | bash
 
 # From source
-go install github.com/Vigilant-LLC/runner-guard/cmd/runner-guard@latest
+go install github.com/Vigilant-LLC/runner-guard/v3/cmd/runner-guard@latest
 ```
 
 Pre-built binaries for Linux, macOS, and Windows (amd64/arm64) on the [Releases page](https://github.com/Vigilant-LLC/runner-guard/releases).
@@ -238,7 +238,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Vigilant-LLC/runner-guard@9c56ede7d1ea56b29a8c8ead87beee6642c4eac7 # v3.0.2
+      - uses: Vigilant-LLC/runner-guard@fbc77aa4e506afed0c0417e3be0bfa537ef06df9 # v3.1.0
         with:
           fail-on: high
           sarif-upload: 'true'
