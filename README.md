@@ -36,14 +36,16 @@ Runner Guard detects pipeline injection vulnerabilities, unpinned supply chain d
              │  IOCs                     │
              └─────────────┬─────────────┘
                            │
-        ┌──────────────────┼──────────────────┐
-        ▼                  ▼                  ▼
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│   Report     │  │  Auto-Fix    │  │   CI Gate    │
-│              │  │              │  │              │
-│ Console/JSON │  │ Pin actions  │  │ Pass / Fail  │
-│ SARIF / CSV  │  │ Extract envs │  │ SARIF upload │
-└──────────────┘  └──────────────┘  └──────────────┘
+     ┌─────────────┬───────┼───────┬─────────────┐
+     ▼             ▼       ▼       ▼             ▼
+┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+│  Report  │ │ Auto-Fix │ │ CI Gate  │ │ Alerts   │
+│          │ │          │ │          │ │(optional)│
+│ Console  │ │ Pin to   │ │ Pass /   │ │ Slack    │
+│ JSON     │ │ SHAs     │ │ Fail     │ │ PagerDuty│
+│ SARIF    │ │ Extract  │ │ SARIF    │ │ Webhook  │
+│ CSV      │ │ envs     │ │ upload   │ │          │
+└──────────┘ └──────────┘ └──────────┘ └──────────┘
 ```
 
 ---
