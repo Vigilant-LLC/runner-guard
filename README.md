@@ -71,6 +71,8 @@ Pre-built binaries for Linux, macOS, and Windows (amd64/arm64) on the [Releases 
 - **41 compromised package versions** across 13 confirmed supply chain attack campaigns (UNC1069/Axios, TeamPCP, npm debug/chalk, Solana web3.js, and more)
 - **31 threat signatures across 6 campaign files** -- GlassWorm, TeamPCP, UNC1069/Axios, Telnyx, and general supply chain IOCs
 - **Upstream pipeline audit** -- `audit-deps` resolves your dependencies to source repos and scans each repo's CI/CD pipeline, answering "are my dependencies' build pipelines secure?"
+- **Continuous monitoring** -- `monitor` polls npm and PyPI registries for new releases of your dependencies, alerts on compromised versions and IOC signature matches via console, Slack, or generic webhook
+- **Org-wide scanning** -- `scan --org myorg` enumerates all public repos in a GitHub organization and scans them in parallel
 - **Batch scanning** -- scan multiple repos from a file or stdin with `--repos`, parallel scanning with `--concurrency`, output as console summary table, JSON, or CSV
 - **Runner Guard Score** -- CI/CD security score (0-100) with letter grade and category breakdown (Pinning, Permissions, Injection, Triggers, IOCs)
 - **AI config injection detection** across Claude, GitHub Copilot, Cursor, and MCP tooling -- the first scanner to cover this attack surface
@@ -120,6 +122,22 @@ runner-guard check-deps . --format json          # JSON output
 runner-guard scan --repos repos.txt              # from file
 runner-guard scan --repos repos.txt --concurrency 10 --format csv
 cat repos.txt | runner-guard scan --repos -      # from stdin
+```
+
+### Monitor dependencies
+
+```bash
+runner-guard monitor .                           # watch for new compromised releases
+runner-guard monitor . --interval 60             # poll every 60 seconds
+runner-guard monitor . --alert slack --webhook-url https://hooks.slack.com/...
+runner-guard monitor . --alert webhook           # POST JSON to RUNNER_GUARD_WEBHOOK_URL
+```
+
+### Scan an entire organization
+
+```bash
+runner-guard scan --org myorg                    # all public repos in org
+runner-guard scan --org myorg --concurrency 10 --format csv
 ```
 
 ### Auto-fix

@@ -19,10 +19,11 @@ import (
 	"github.com/Vigilant-LLC/runner-guard/internal/autofix"
 	"github.com/Vigilant-LLC/runner-guard/internal/batch"
 	"github.com/Vigilant-LLC/runner-guard/internal/cli"
-	"github.com/Vigilant-LLC/runner-guard/internal/deps"
 	"github.com/Vigilant-LLC/runner-guard/internal/config"
+	"github.com/Vigilant-LLC/runner-guard/internal/deps"
 	"github.com/Vigilant-LLC/runner-guard/internal/git"
 	ghclient "github.com/Vigilant-LLC/runner-guard/internal/github"
+	"github.com/Vigilant-LLC/runner-guard/internal/monitor"
 	"github.com/Vigilant-LLC/runner-guard/internal/reporter"
 	"github.com/Vigilant-LLC/runner-guard/internal/rules"
 	"github.com/Vigilant-LLC/runner-guard/internal/scanner"
@@ -32,7 +33,7 @@ import (
 //
 //	go build -ldflags "-X main.version=1.0.0 -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 var (
-	version = "2.9.0"
+	version = "3.0.0"
 	commit  = "dev"
 	date    = "unknown"
 )
@@ -119,6 +120,9 @@ func main() {
 		case strings.HasPrefix(selection, "audit-deps:"):
 			path := strings.TrimPrefix(selection, "audit-deps:")
 			os.Args = []string{os.Args[0], "audit-deps", path}
+		case strings.HasPrefix(selection, "monitor:"):
+			path := strings.TrimPrefix(selection, "monitor:")
+			os.Args = []string{os.Args[0], "monitor", path}
 		case strings.HasPrefix(selection, "fix:"):
 			path := strings.TrimPrefix(selection, "fix:")
 			os.Args = []string{os.Args[0], "fix", path}
@@ -135,6 +139,7 @@ func main() {
 		newScanCmd(),
 		newCheckDepsCmd(),
 		newAuditDepsCmd(),
+		newMonitorCmd(),
 		newDemoCmd(),
 		newBaselineCmd(),
 		newFixCmd(),
@@ -180,6 +185,7 @@ func newScanCmd() *cobra.Command {
 		rulesFlag   string
 		groupFlag   string
 		reposFile   string
+		orgFlag     string
 		concurrency int
 	)
 
@@ -194,16 +200,22 @@ Path can be:
   - A GitHub repository:   runner-guard scan github.com/owner/repo
   - With a branch:         runner-guard scan github.com/owner/repo@main
   - Multiple repos:        runner-guard scan --repos repos.txt
-  - From stdin:            cat repos.txt | runner-guard scan --repos -`,
+  - From stdin:            cat repos.txt | runner-guard scan --repos -
+  - Entire org:            runner-guard scan --org myorg`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Org scanning mode: --org flag
+			if orgFlag != "" {
+				return runOrgScan(orgFlag, concurrency, failOn, format, noColor, output, rulesFlag, groupFlag)
+			}
+
 			// Batch mode: --repos flag
 			if reposFile != "" {
 				return runBatchScan(reposFile, concurrency, failOn, format, noColor, output, rulesFlag, groupFlag)
 			}
 
 			if len(args) == 0 {
-				return fmt.Errorf("path argument required (or use --repos for batch scanning)")
+				return fmt.Errorf("path argument required (or use --repos/--org for batch scanning)")
 			}
 
 			start := time.Now()
@@ -305,7 +317,8 @@ Path can be:
 	cmd.Flags().StringVar(&rulesFlag, "rules", "", "Run only specific rules (comma-separated, e.g. RGS-016,RGS-018)")
 	cmd.Flags().StringVar(&groupFlag, "group", "", "Run only rules in specific groups (comma-separated: injection, permissions, secrets, supply-chain, ai-config, steganography, debug)")
 	cmd.Flags().StringVar(&reposFile, "repos", "", "Path to file with repos to scan (one per line, or '-' for stdin)")
-	cmd.Flags().IntVar(&concurrency, "concurrency", 5, "Max concurrent scans for batch mode")
+	cmd.Flags().StringVar(&orgFlag, "org", "", "Scan all public repos in a GitHub organization")
+	cmd.Flags().IntVar(&concurrency, "concurrency", 5, "Max concurrent scans for batch/org mode")
 
 	return cmd
 }
@@ -331,6 +344,78 @@ func runBatchScan(reposFile string, concurrency int, failOn, format string, noCo
 	}
 
 	fmt.Fprintf(os.Stderr, "Batch scanning %d repos (concurrency: %d)...\n\n", len(repos), concurrency)
+
+	cfg := batch.Config{
+		Repos:       repos,
+		Concurrency: concurrency,
+		FailOn:      failOn,
+		Format:      format,
+		NoColor:     noColor || !isTTY(),
+		RulesFS:     runnerguard.RulesFS,
+	}
+
+	if rulesFlag != "" {
+		cfg.RuleIDs = splitAndTrim(rulesFlag)
+	}
+	if groupFlag != "" {
+		cfg.Groups = splitAndTrim(groupFlag)
+	}
+
+	result := batch.Run(cfg)
+
+	// Select output destination.
+	var w io.Writer = os.Stdout
+	if output != "" {
+		f, err := os.Create(output)
+		if err != nil {
+			return fmt.Errorf("creating output file: %w", err)
+		}
+		defer f.Close()
+		w = f
+	}
+
+	duration := time.Since(start)
+
+	switch format {
+	case "json":
+		if err := batch.WriteJSONReport(w, result); err != nil {
+			return fmt.Errorf("writing JSON report: %w", err)
+		}
+	case "csv":
+		if err := batch.WriteCSVReport(w, result); err != nil {
+			return fmt.Errorf("writing CSV report: %w", err)
+		}
+	default:
+		batch.WriteConsoleReport(w, result, noColor || !isTTY(), duration)
+	}
+
+	os.Exit(result.ExitCode)
+	return nil
+}
+
+// runOrgScan lists all repos in a GitHub org and scans them using batch infrastructure.
+func runOrgScan(org string, concurrency int, failOn, format string, noColor bool, output, rulesFlag, groupFlag string) error {
+	start := time.Now()
+
+	if noColor || !isTTY() {
+		color.NoColor = true
+	}
+
+	printHeader(os.Stderr)
+
+	fmt.Fprintf(os.Stderr, "Listing repositories for organization %s...\n", org)
+
+	repos, err := ghclient.ListOrgRepos(org)
+	if err != nil {
+		return fmt.Errorf("listing org repos: %w", err)
+	}
+
+	if len(repos) == 0 {
+		fmt.Fprintln(os.Stderr, "No public repositories found in organization.")
+		return nil
+	}
+
+	fmt.Fprintf(os.Stderr, "Found %d public repositories. Scanning (concurrency: %d)...\n\n", len(repos), concurrency)
 
 	cfg := batch.Config{
 		Repos:       repos,
@@ -729,6 +814,61 @@ func shortRepo(repo string) string {
 }
 
 // ---------------------------------------------------------------------------
+// monitor command
+// ---------------------------------------------------------------------------
+
+func newMonitorCmd() *cobra.Command {
+	var (
+		interval    int
+		alertMode   string
+		webhookURL  string
+		concurrency int
+	)
+
+	cmd := &cobra.Command{
+		Use:   "monitor [path]",
+		Short: "Continuously monitor dependencies for new compromised releases",
+		Long: `Polls package registries (npm, PyPI) for new releases of your
+dependencies and runs threat signature detection against release metadata.
+
+Alerts when a dependency publishes a version that matches known IOC patterns
+or appears in the compromised packages database.
+
+Examples:
+  runner-guard monitor .                           # monitor deps in current dir
+  runner-guard monitor . --interval 60             # poll every 60 seconds
+  runner-guard monitor . --alert slack --webhook-url https://hooks.slack.com/...`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir := "."
+			if len(args) > 0 {
+				dir = args[0]
+			}
+
+			printHeader(os.Stderr)
+
+			cfg := monitor.Config{
+				Dir:         dir,
+				Interval:    time.Duration(interval) * time.Second,
+				AlertMode:   alertMode,
+				WebhookURL:  webhookURL,
+				RulesFS:     runnerguard.RulesFS,
+				Concurrency: concurrency,
+			}
+
+			return monitor.Run(cfg)
+		},
+	}
+
+	cmd.Flags().IntVar(&interval, "interval", 300, "Poll interval in seconds (default: 300)")
+	cmd.Flags().StringVar(&alertMode, "alert", "console", "Alert mode: console, slack, webhook")
+	cmd.Flags().StringVar(&webhookURL, "webhook-url", "", "Webhook URL for alerts (or set RUNNER_GUARD_WEBHOOK_URL env var)")
+	cmd.Flags().IntVar(&concurrency, "concurrency", 5, "Max concurrent registry checks")
+
+	return cmd
+}
+
+// ---------------------------------------------------------------------------
 // demo command
 // ---------------------------------------------------------------------------
 
@@ -915,7 +1055,7 @@ func buildDemoContexts(sc demoScenario) map[string]string {
 		"RGS-005", "RGS-006", "RGS-007", "RGS-008",
 		"RGS-009", "RGS-010", "RGS-011", "RGS-012",
 		"RGS-014", "RGS-015", "RGS-016", "RGS-017",
-		"RGS-018",
+		"RGS-018", "RGS-019",
 	}
 
 	contexts := make(map[string]string, len(ruleIDs))

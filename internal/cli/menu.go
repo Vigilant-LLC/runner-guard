@@ -27,9 +27,10 @@ func ShowMenu() string {
 		{Label: "Scan multiple repositories (from file)", Available: true},
 		{Label: "Check dependencies for known compromises", Available: true},
 		{Label: "Audit upstream dependency pipelines", Available: true},
+		{Label: "Monitor dependencies for new threats", Available: true},
 		{Label: "Fix vulnerabilities (auto-pin + extract)", Available: true},
-		{Label: "Install pre-commit hook", Available: false, ComingSoon: "v3.0.0"},
-		{Label: "Generate Dependabot config", Available: false, ComingSoon: "v3.0.0"},
+		{Label: "Install pre-commit hook", Available: false, ComingSoon: "v3.1.0"},
+		{Label: "Generate Dependabot config", Available: false, ComingSoon: "v3.1.0"},
 		{Label: "Run demo (vulnerable workflow examples)", Available: true},
 	}
 
@@ -48,7 +49,7 @@ func ShowMenu() string {
 	}
 
 	fmt.Println()
-	fmt.Print("Select (1-8): ")
+	fmt.Print("Select (1-9): ")
 
 	reader := bufio.NewReader(os.Stdin)
 	input, err := reader.ReadString('\n')
@@ -67,16 +68,18 @@ func ShowMenu() string {
 	case "4":
 		return showAuditDepsSubMenu(reader)
 	case "5":
-		return showFixSubMenu(reader)
+		return showMonitorSubMenu(reader)
 	case "6":
-		fmt.Println("\n  Pre-commit hook is coming in v3.0.0.")
+		return showFixSubMenu(reader)
+	case "7":
+		fmt.Println("\n  Pre-commit hook is coming in v3.1.0.")
 		fmt.Println("  This will scan workflow changes before they are committed.")
 		return ""
-	case "7":
-		fmt.Println("\n  Dependabot config generator is coming in v3.0.0.")
+	case "8":
+		fmt.Println("\n  Dependabot config generator is coming in v3.1.0.")
 		fmt.Println("  This will create a dependabot.yml after pinning your actions.")
 		return ""
-	case "8":
+	case "9":
 		return "demo"
 	default:
 		fmt.Printf("\n  Invalid selection: %s\n", input)
@@ -262,6 +265,27 @@ func showBatchSubMenu(reader *bufio.Reader) string {
 		fmt.Printf("\n  Invalid selection: %s\n", input)
 		return ""
 	}
+}
+
+func showMonitorSubMenu(reader *bufio.Reader) string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error getting current directory: %v\n", err)
+		return ""
+	}
+	absPath, _ := filepath.Abs(cwd)
+	fmt.Printf("\n  Monitor dependencies in: %s\n", absPath)
+	fmt.Println("  This will poll npm and PyPI registries for new releases of your")
+	fmt.Println("  dependencies and alert on known threat signatures or compromised versions.")
+	fmt.Println("  Press Ctrl+C to stop monitoring.")
+	fmt.Print("  Continue? (Y/n): ")
+
+	confirm, _ := reader.ReadString('\n')
+	confirm = strings.TrimSpace(strings.ToLower(confirm))
+	if confirm == "n" || confirm == "no" {
+		return ""
+	}
+	return "monitor:."
 }
 
 func showFixSubMenu(reader *bufio.Reader) string {

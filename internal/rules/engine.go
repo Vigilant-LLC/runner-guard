@@ -41,7 +41,22 @@ type ThreatSignature struct {
 	Severity    string   `yaml:"severity"`
 	FirstSeen   string   `yaml:"first_seen"`
 	References  []string `yaml:"references"`
+	Campaign    string   // populated from parent SignaturesFile.Campaign
 	compiled    *regexp.Regexp
+}
+
+// Match returns true if the compiled pattern matches the given text.
+func (s *ThreatSignature) Match(text string) bool {
+	if s.compiled == nil {
+		return false
+	}
+	return s.compiled.MatchString(text)
+}
+
+// LoadSignatures is the public API for loading threat signatures from the
+// embedded rules filesystem. Used by the monitor package for IOC matching.
+func LoadSignatures(fsys fs.FS) ([]*ThreatSignature, error) {
+	return loadSignatures(fsys)
 }
 
 // SignaturesFile is the top-level structure of a signature YAML file.
@@ -145,6 +160,7 @@ func loadSignatureFile(fsys fs.FS, path string) ([]*ThreatSignature, error) {
 			continue
 		}
 		sig.compiled = compiled
+		sig.Campaign = sf.Campaign
 		seen[sig.ID] = true
 		valid = append(valid, sig)
 	}

@@ -280,3 +280,72 @@ func isWorkflowFile(name string) bool {
 	lower := strings.ToLower(name)
 	return strings.HasSuffix(lower, ".yml") || strings.HasSuffix(lower, ".yaml")
 }
+
+// ListOrgRepos lists all public repositories for a GitHub organization.
+// Uses pagination to retrieve all repos. Returns repo paths in
+// "github.com/owner/repo" format.
+func ListOrgRepos(org string) ([]string, error) {
+	client := &http.Client{Timeout: httpTimeout}
+	var allRepos []string
+
+	page := 1
+	for {
+		url := fmt.Sprintf("%s/orgs/%s/repos?type=public&per_page=100&page=%d", githubAPIBase, org, page)
+
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("creating request for org %s repos: %w", org, err)
+		}
+		setCommonHeaders(req)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("fetching repos for org %s: %w", org, err)
+		}
+
+		if err := checkRateLimit(resp); err != nil {
+			resp.Body.Close()
+			return nil, err
+		}
+
+		if resp.StatusCode == http.StatusNotFound {
+			resp.Body.Close()
+			return nil, fmt.Errorf("organization %q not found", org)
+		}
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+			resp.Body.Close()
+			return nil, fmt.Errorf("GitHub API returned %d for org %s: %s", resp.StatusCode, org, string(body))
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("reading org repos response: %w", err)
+		}
+
+		var repos []struct {
+			FullName string `json:"full_name"`
+			Archived bool   `json:"archived"`
+			Fork     bool   `json:"fork"`
+		}
+		if err := json.Unmarshal(body, &repos); err != nil {
+			return nil, fmt.Errorf("parsing org repos response: %w", err)
+		}
+
+		if len(repos) == 0 {
+			break // no more pages
+		}
+
+		for _, r := range repos {
+			if r.Archived {
+				continue // skip archived repos
+			}
+			allRepos = append(allRepos, "github.com/"+r.FullName)
+		}
+
+		page++
+	}
+
+	return allRepos, nil
+}
