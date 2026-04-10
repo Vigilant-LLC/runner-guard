@@ -1,0 +1,97 @@
+version: 1
+last_updated: "2026-04-10"
+campaign: prt-scan
+description: >
+  AI-powered GitHub Actions supply chain campaign active since March 11, 2026.
+  Exploits pull_request_target workflows by opening malicious PRs with
+  AI-generated, language-aware payloads. Six waves across 500+ PRs targeting
+  enterprise (AWS, SAP, Palo Alto) and major OSS projects. Compromised at
+  least two npm packages. Exfiltrates CI/CD secrets, cloud metadata, and
+  OIDC tokens. Operated by accounts linked to testedbefore@proton.me.
+
+signatures:
+  # Exfiltration markers
+  - id: prtscan-exfil-marker
+    threat_actor: prt-scan
+    type: ioc-variable
+    pattern: "PRT_EXFIL_START|PRT_RECON_START|PRT_HARVEST_START|PRT_DELAYED_START"
+    description: "prt-scan exfiltration stage markers in workflow logs or scripts"
+    severity: critical
+    first_seen: "2026-03-11"
+    references:
+      - https://www.wiz.io/blog/six-accounts-one-actor-inside-the-prt-scan-supply-chain-campaign
+
+  - id: prtscan-exfil-end-marker
+    threat_actor: prt-scan
+    type: ioc-variable
+    pattern: "PRT_EXFIL_END|PRT_RECON_END|PRT_HARVEST_END|PRT_DELAYED_END"
+    description: "prt-scan exfiltration end markers"
+    severity: critical
+    first_seen: "2026-03-11"
+    references:
+      - https://www.wiz.io/blog/six-accounts-one-actor-inside-the-prt-scan-supply-chain-campaign
+
+  - id: prtscan-git-auth-exfil
+    threat_actor: prt-scan
+    type: ioc-variable
+    pattern: "PRT_GIT_AUTH|PRT_LABEL_BYPASS"
+    description: "prt-scan git credential exfiltration and label bypass markers"
+    severity: critical
+    first_seen: "2026-03-11"
+    references:
+      - https://safedep.io/prt-scan-github-actions-exfiltration-campaign/
+
+  # Payload files
+  - id: prtscan-exfil-script
+    threat_actor: prt-scan
+    type: ioc-variable
+    pattern: "prt_exfil\\.sh|\\.prt_tmp_.*\\.yml"
+    description: "prt-scan exfiltration script or injected temporary workflow file"
+    severity: critical
+    first_seen: "2026-03-11"
+    references:
+      - https://www.wiz.io/blog/six-accounts-one-actor-inside-the-prt-scan-supply-chain-campaign
+
+  # Cloud metadata probing
+  - id: prtscan-cloud-section-markers
+    threat_actor: prt-scan
+    type: ioc-variable
+    pattern: "##CLOUD_AZURE##|##CLOUD_AWS##|##CLOUD_GCP##|##SECTION##"
+    description: "prt-scan cloud metadata section delimiters used in exfiltration output"
+    severity: high
+    first_seen: "2026-03-11"
+    references:
+      - https://safedep.io/prt-scan-github-actions-exfiltration-campaign/
+
+  # Git credential extraction technique
+  - id: prtscan-git-extraheader
+    threat_actor: prt-scan
+    type: ioc-variable
+    pattern: "git\\s+config\\s+--get-all\\s+http\\..*\\.extraheader"
+    description: "prt-scan extracts GITHUB_TOKEN from git HTTP extraheader config"
+    severity: critical
+    first_seen: "2026-03-11"
+    references:
+      - https://safedep.io/prt-scan-github-actions-exfiltration-campaign/
+
+  # /proc environ scanning for secrets
+  - id: prtscan-proc-environ-scan
+    threat_actor: prt-scan
+    type: ioc-variable
+    pattern: "/proc/.*/environ.*(?:NETLIFY|ALCHEMY|INFURA|STRIPE|AWS_SECRET|NPM_TOKEN|CLOUDFLARE|PRIVATE_KEY|OPENAI|ANTHROPIC)"
+    description: "prt-scan scans /proc/*/environ for high-value secrets every 2 seconds"
+    severity: critical
+    first_seen: "2026-04-02"
+    references:
+      - https://safedep.io/prt-scan-github-actions-exfiltration-campaign/
+
+  # Compromised packages
+  - id: prtscan-compromised-pkg-codfish
+    threat_actor: prt-scan
+    type: ioc-package
+    pattern: "(?i)@codfish/eslint-config|@codfish/actions"
+    description: "npm packages compromised by prt-scan campaign"
+    severity: critical
+    first_seen: "2026-03-11"
+    references:
+      - https://www.wiz.io/blog/six-accounts-one-actor-inside-the-prt-scan-supply-chain-campaign

@@ -26,7 +26,7 @@ type Finding struct {
 	Description    string   `json:"description"`
 	Evidence       string   `json:"evidence"`
 	AttackScenario string   `json:"attack_scenario"`
-	Fix            string   `json:"fix"`
+	Fix            string   `json:"remediation"`
 	References     []string `json:"references"`
 	DemoContext    string   `json:"demo_context,omitempty"`
 }

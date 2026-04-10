@@ -74,7 +74,7 @@ Pre-built binaries for Linux, macOS, and Windows (amd64/arm64) on the [Releases 
 
 - **18 detection rules** covering fork checkout exploits, expression injection, secret exfiltration, unpinned actions, AI config injection, and supply chain steganography with permissions-aware severity
 - **41 compromised package versions** across 13 confirmed supply chain attack campaigns (UNC1069/Axios, TeamPCP, npm debug/chalk, Solana web3.js, and more)
-- **31 threat signatures across 6 campaign files** -- GlassWorm, TeamPCP, UNC1069/Axios, Telnyx, and general supply chain IOCs
+- **39 threat signatures across 7 campaign files** -- GlassWorm, TeamPCP, UNC1069/Axios, Telnyx, prt-scan, and general supply chain IOCs
 - **Upstream pipeline audit** -- `audit-deps` resolves your dependencies to source repos and scans each repo's CI/CD pipeline, answering "are my dependencies' build pipelines secure?"
 - **Continuous monitoring** -- `monitor` polls npm and PyPI registries for new releases of your dependencies, alerts on compromised versions and IOC signature matches via console, Slack, PagerDuty, or generic webhook
 - **Org-wide scanning** -- `scan --org myorg` enumerates all public repos in a GitHub organization and scans them in parallel
