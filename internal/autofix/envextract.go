@@ -544,11 +544,22 @@ func replaceOutsideSingleQuotes(line, old, new_ string) string {
 
 	if singleCount%2 == 1 {
 		// Inside single quotes. ${{ }} is still expanded by GitHub Actions
-		// before the shell sees it, so we must extract. Use bash string
-		// concatenation: close single quote, insert double-quoted var,
-		// reopen single quote.
+		// before the shell sees it, so we must extract.
+
+		afterIdx := idx + len(old)
+
+		// If the expression is the entire single-quoted value (i.e., 'EXPR'),
+		// replace the whole thing including surrounding quotes with "VAR".
+		// This avoids broken concatenation like ''\"${VAR}\"''.
+		if idx > 0 && line[idx-1] == '\'' && afterIdx < len(line) && line[afterIdx] == '\'' {
+			replacement := "\"" + new_ + "\""
+			return line[:idx-1] + replacement + replaceOutsideSingleQuotes(line[afterIdx+1:], old, new_)
+		}
+
+		// Otherwise use bash string concatenation: close single quote,
+		// insert double-quoted var, reopen single quote.
 		replacement := "'" + "\"" + new_ + "\"" + "'"
-		return line[:idx] + replacement + replaceOutsideSingleQuotes(line[idx+len(old):], old, new_)
+		return line[:idx] + replacement + replaceOutsideSingleQuotes(line[afterIdx:], old, new_)
 	}
 
 	// Check if we're inside double quotes. If so, the existing quotes

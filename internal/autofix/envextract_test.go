@@ -221,8 +221,9 @@ jobs:
 	assert.Len(t, results, 1, "should extract expressions inside single quotes (GitHub expands before shell)")
 
 	content := readWorkflowFile(t, dir)
-	// The run block should use bash string concatenation: ''"${PR_TITLE}"''
-	assert.Contains(t, content, `'"${PR_TITLE}"'`)
+	// When expression is the entire single-quoted value, replace whole thing
+	// with double-quoted var: '${{ expr }}' -> "${VAR}"
+	assert.Contains(t, content, `"${PR_TITLE}"`)
 	// The env mapping should have the expression
 	assert.Contains(t, content, "PR_TITLE: ${{ github.event.pull_request.title }}")
 }
@@ -247,8 +248,8 @@ jobs:
 	content := readWorkflowFile(t, dir)
 	// Double-quoted expression: standard replacement
 	assert.Contains(t, content, "${HEAD_REF}")
-	// Single-quoted expression: bash string concatenation
-	assert.Contains(t, content, `'"${PR_TITLE}"'`)
+	// Single-quoted expression (entire value): replaced with double-quoted var
+	assert.Contains(t, content, `"${PR_TITLE}"`)
 	// Both should be in env mappings
 	assert.Contains(t, content, "PR_TITLE: ${{ github.event.pull_request.title }}")
 	assert.Contains(t, content, "HEAD_REF: ${{ github.head_ref }}")
