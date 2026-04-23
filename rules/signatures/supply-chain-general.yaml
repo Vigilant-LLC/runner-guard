@@ -1,35 +1,40 @@
 version: 1
-last_updated: "2026-04-02"
+last_updated: "2026-04-23"
 campaign: Supply-Chain-General
 description: >
-  General supply chain attack indicators not tied to a specific campaign.
-  Includes known compromised tools and common exfiltration patterns.
+  General open source software supply chain attack indicators that are
+  not tied to a specific threat actor or named campaign. Includes known
+  compromised tools like the deprecated Codecov bash uploader and common
+  behavioral patterns observed across multiple CI/CD pipeline
+  compromises, such as exfiltration to short random domains and bulk
+  environment variable harvesting. These signatures act as a safety net
+  that catches supply chain attack behaviors even when specific campaign
+  IOCs have not yet been extracted. Vigilant's research on open source
+  CI/CD security risk across the top 50,000 GitHub repositories is
+  available at
+  https://www.vigilantdefense.com/research/github-top-50k-repos-cicd-security-scan
 
 signatures:
   - id: codecov-bash-uploader
     threat_actor: Supply-Chain
     type: ioc-behavior
     pattern: "(?i)\\bcurl\\s+-s\\s+https://codecov\\.io/bash\\s*\\|"
-    description: "Deprecated Codecov bash uploader (compromised in 2021 supply chain attack)"
+    description: "Deprecated Codecov bash uploader, compromised in the 2021 supply chain attack that exposed credentials from thousands of CI/CD pipelines"
     severity: high
     first_seen: "2021-04"
-    references:
-      - "https://about.codecov.io/security-update/"
 
   - id: supply-chain-curl-exfil
     threat_actor: Generic
     type: ioc-behavior
     pattern: "(?i)(curl|wget)\\s+(-s\\s+)?(-X\\s+POST\\s+)?https?://[a-z0-9]{6,20}\\.[a-z]{2,6}[:/]"
-    description: "curl/wget to short random domain during CI execution (potential exfiltration)"
+    description: "curl or wget call to a short random-looking domain during CI/CD execution, a common exfiltration pattern in open source supply chain attacks"
     severity: high
     first_seen: "2026-03"
-    references: []
 
   - id: supply-chain-env-harvest
     threat_actor: Generic
     type: ioc-behavior
     pattern: "(?i)(printenv|\\benv\\b|\\bset\\b)\\s*>\\s*[a-z/]|\\benv\\b.*\\|.*(curl|wget|nc\\b)"
-    description: "Bulk environment variable dumping to file or network (credential harvesting)"
+    description: "Bulk environment variable dumping to a file or piped to a network tool, a credential harvesting pattern used across multiple open source supply chain campaigns"
     severity: critical
     first_seen: "2026-03"
-    references: []

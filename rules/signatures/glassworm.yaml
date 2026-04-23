@@ -1,70 +1,67 @@
 version: 1
-last_updated: "2026-03-21"
+last_updated: "2026-04-23"
 campaign: GlassWorm
 description: >
-  GlassWorm campaign compromised 433+ components across GitHub, npm, and
-  VS Code/OpenVSX using Unicode steganography. Invisible characters encode
-  executable payloads that activate during CI/CD pipeline runs. The decoded
-  ZOMBI module performs credential harvesting, cryptocurrency wallet theft,
-  SOCKS proxy deployment, and uses the Solana blockchain for C2.
+  GlassWorm is an open source supply chain worm that compromised 433+
+  components across GitHub, npm, and VS Code/OpenVSX using Unicode
+  steganography to hide malicious code in plain sight. Invisible Unicode
+  characters (variation selectors, zero-width spaces, tag characters)
+  encode executable payloads that activate during CI/CD pipeline runs and
+  developer editor sessions. The decoded ZOMBI module performs credential
+  harvesting, cryptocurrency wallet theft, SOCKS proxy deployment, and
+  uses Solana blockchain transactions as stealth command and control
+  infrastructure. GlassWorm represents a novel detection-evasion vector
+  where source code visually appears clean while carrying executable
+  bytes invisible to human reviewers. Vigilant's research on open source
+  CI/CD security risk across the top 50,000 GitHub repositories is
+  available at
+  https://www.vigilantdefense.com/research/github-top-50k-repos-cicd-security-scan
 
 signatures:
   - id: glassworm-marker-variable
     threat_actor: GlassWorm
     type: ioc-variable
     pattern: "\\blzcdrtfxyqiplpd\\b"
-    description: "Known GlassWorm malware marker variable"
+    description: "Known GlassWorm open source supply chain malware marker variable, hardcoded across compromised npm and VS Code extension packages"
     severity: high
     first_seen: "2025-10"
-    references:
-      - "https://www.aikido.dev/blog/glassworm-returns-unicode-attack-github-npm-vscode"
 
   - id: glassworm-persistence-file
     threat_actor: GlassWorm
     type: ioc-filepath
     pattern: "~/init\\.json"
-    description: "GlassWorm persistence file path"
+    description: "GlassWorm persistence file path written to developer home directories to maintain access between CI/CD pipeline runs"
     severity: high
     first_seen: "2025-10"
-    references:
-      - "https://thehackernews.com/2026/03/glassworm-attack-uses-stolen-github.html"
 
   - id: glassworm-hidden-node
     threat_actor: GlassWorm
     type: ioc-filepath
     pattern: "~/node-v22"
-    description: "GlassWorm hidden Node.js installation path"
+    description: "GlassWorm hidden Node.js installation path used to execute the decoded ZOMBI module outside normal package management paths"
     severity: high
     first_seen: "2025-10"
-    references:
-      - "https://thehackernews.com/2026/03/glassworm-attack-uses-stolen-github.html"
 
   - id: glassworm-solana-c2
     threat_actor: GlassWorm
     type: ioc-behavior
     pattern: "(?i)solana.*memo|memo.*solana"
-    description: "Potential Solana blockchain C2 communication pattern"
+    description: "Solana blockchain memo-based command and control communication pattern, a decentralized C2 technique that resists traditional network takedown"
     severity: high
     first_seen: "2025-11"
-    references:
-      - "https://securityonline.info/glassworm-supply-chain-worm-uses-invisible-unicode-and-solana-blockchain-for-stealth-c2/"
 
   - id: glassworm-zombi-xor
     threat_actor: GlassWorm
     type: ioc-behavior
     pattern: "(?i)zlib\\.decompress.*\\bxor\\b|\\bxor\\b.*zlib\\.decompress"
-    description: "GlassWorm ZOMBI-style zlib+XOR deobfuscation chain"
+    description: "GlassWorm ZOMBI-style zlib plus XOR deobfuscation chain used to unpack the malicious payload at runtime"
     severity: critical
     first_seen: "2025-12"
-    references:
-      - "https://www.aikido.dev/blog/glassworm-returns-unicode-attack-github-npm-vscode"
 
   - id: glassworm-unicode-decode
     threat_actor: GlassWorm
     type: ioc-behavior
     pattern: "(?i)\\\\u[0-9a-f]{4}.*\\\\u[0-9a-f]{4}.*exec|exec.*\\\\u[0-9a-f]{4}.*\\\\u[0-9a-f]{4}"
-    description: "Unicode escape sequence used to hide executable payload"
+    description: "Unicode escape sequence chains used to hide executable payload content, the steganographic core of the GlassWorm supply chain attack"
     severity: high
     first_seen: "2025-11"
-    references:
-      - "https://www.aikido.dev/blog/glassworm-returns-unicode-attack-github-npm-vscode"

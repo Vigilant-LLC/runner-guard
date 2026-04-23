@@ -60,6 +60,4 @@ fix: |
   5. Consider whether the encoded content could be committed in plain text instead
 
 references:
-  - "https://www.aikido.dev/blog/glassworm-returns-unicode-attack-github-npm-vscode"
-  - "https://thehackernews.com/2026/03/glassworm-attack-uses-stolen-github.html"
-  - "https://securityonline.info/glassworm-supply-chain-worm-uses-invisible-unicode-and-solana-blockchain-for-stealth-c2/"
+  - "https://www.vigilantdefense.com/research/github-top-50k-repos-cicd-security-scan"

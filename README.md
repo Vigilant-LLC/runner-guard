@@ -73,8 +73,8 @@ Pre-built binaries for Linux, macOS, and Windows (amd64/arm64) on the [Releases 
 ## Features
 
 - **18 detection rules** covering fork checkout exploits, expression injection, secret exfiltration, unpinned actions, AI config injection, and supply chain steganography with permissions-aware severity
-- **41 compromised package versions** across 13 confirmed supply chain attack campaigns (UNC1069/Axios, TeamPCP, npm debug/chalk, Solana web3.js, and more)
-- **39 threat signatures across 7 campaign files** -- GlassWorm, TeamPCP, UNC1069/Axios, Telnyx, prt-scan, and general supply chain IOCs
+- **41 compromised package versions** across 13 confirmed supply chain attack campaigns (UNC1069/Axios, TeamPCP, CanisterWorm/CanisterSprawl, npm debug/chalk, Solana web3.js, and more)
+- **65 threat signatures across 8 campaign files** -- GlassWorm, TeamPCP (including Phase 5 CanisterWorm), UNC1069/Axios, Telnyx, prt-scan, Strapi-Cryptosteal, and general supply chain IOCs. Grounded in [Vigilant's 50K-repository CI/CD security research](https://www.vigilantdefense.com/research/github-top-50k-repos-cicd-security-scan).
 - **Upstream pipeline audit** -- `audit-deps` resolves your dependencies to source repos and scans each repo's CI/CD pipeline, answering "are my dependencies' build pipelines secure?"
 - **Continuous monitoring** -- `monitor` polls npm and PyPI registries for new releases of your dependencies, alerts on compromised versions and IOC signature matches via console, Slack, PagerDuty, or generic webhook
 - **Org-wide scanning** -- `scan --org myorg` enumerates all public repos in a GitHub organization and scans them in parallel
@@ -331,15 +331,17 @@ runner-guard baseline update                         # update after triage
 
 ## The Threat Landscape
 
-### Active Supply Chain Campaign (March 2026)
+### Active Supply Chain Campaign (March -- April 2026)
 
-A coordinated attack campaign escalated through multiple phases:
+A coordinated open source software supply chain attack campaign has escalated through multiple phases against npm, PyPI, and GitHub Actions:
 
 - **Phase 1-2 (March 12)**: reviewdog and tj-actions/changed-files compromised, harvesting CI/CD credentials from 23,000+ repositories
 - **Phase 3 (March 19-27)**: Trivy, Checkmarx, LiteLLM, and Telnyx compromised by TeamPCP. Cisco lost 300+ source code repos.
-- **Phase 4 (March 30)**: Axios (100M weekly downloads) compromised with a RAT. Attributed to North Korean threat actor UNC1069.
+- **Phase 4 (March 30)**: Axios (100M weekly downloads) compromised with a cross-platform RAT. Attributed to North Korean threat actor UNC1069.
+- **Phase 5 (April 21-22)**: TeamPCP-tracked **CanisterWorm** / **CanisterSprawl** self-propagating npm worm hit pgserve, @automagik/genie (Namastex Labs), @fairwords/*, and @openwebconcept/* packages. Uses Internet Computer Protocol (ICP) canister dead-drop infrastructure with RSA-encrypted exfiltration and propagates across both npm and PyPI.
+- **Concurrent (April 21-22)**: **Strapi-Cryptosteal** uploaded 36 malicious npm packages masquerading as Strapi CMS plugins from four sock-puppet accounts, targeting cryptocurrency platforms with Redis RCE and PostgreSQL credential scanning.
 
-Runner Guard includes IOC signatures for all confirmed phases organized in `rules/signatures/` by campaign.
+Runner Guard includes IOC signatures for all confirmed phases organized in `rules/signatures/` by campaign. For deeper analysis of how these attacks intersect with the broader open source ecosystem, see [Vigilant's research on CI/CD security across the top 50,000 GitHub repositories](https://www.vigilantdefense.com/research/github-top-50k-repos-cicd-security-scan).
 
 ### CI/CD Pipeline Injection
 
@@ -381,7 +383,7 @@ We built Runner Guard because we've weaponized these exact attack chains against
 
 Vigilant donates 25% of profit to organizations combating human trafficking and supporting orphan care worldwide.
 
-For enterprise support, custom rule development, or security assessments, visit [vigilantdefense.com](https://vigilantdefense.com).
+For enterprise support, custom rule development, or security assessments, visit [vigilantdefense.com](https://vigilantdefense.com). Read the research that informs Runner Guard's detection rules in our [CI/CD vulnerability scan of the top 50,000 GitHub repositories](https://www.vigilantdefense.com/research/github-top-50k-repos-cicd-security-scan) and the companion deep dives: [Supply Chain Crisis: Unpinned GitHub Actions](https://www.vigilantdefense.com/research/supply-chain-crisis-unpinned-github-actions), [CI/CD Chain Attack Anatomy](https://www.vigilantdefense.com/research/cicd-chain-attack-anatomy-recon-to-exfiltration), and [From Scanner to Weapon: the LiteLLM Supply Chain Attack](https://www.vigilantdefense.com/research/from-scanner-to-weapon-inside-the-supply-chain-attack-that-backdoored-the-1-ai-key-management-library).
 
 ---
 

@@ -60,6 +60,4 @@ fix: |
   - Run Runner Guard in CI to catch steganographic payloads before they execute
 
 references:
-  - "https://www.aikido.dev/blog/glassworm-returns-unicode-attack-github-npm-vscode"
-  - "https://thehackernews.com/2026/03/glassworm-attack-uses-stolen-github.html"
-  - "https://www.stepsecurity.io/blog/forcememo-hundreds-of-github-python-repos-compromised-via-account-takeover-and-force-push"
+  - "https://www.vigilantdefense.com/research/github-top-50k-repos-cicd-security-scan"

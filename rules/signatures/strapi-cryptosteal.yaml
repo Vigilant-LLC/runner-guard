@@ -1,0 +1,90 @@
+version: 1
+last_updated: "2026-04-23"
+campaign: Strapi-Cryptosteal
+description: >
+  Strapi-Cryptosteal is an open source software supply chain attack
+  campaign that uploaded 36 malicious npm packages masquerading as Strapi
+  CMS plugins between April 21 and April 22, 2026. All 36 packages were
+  published at version 3.6.8 and used the "strapi-plugin-" prefix (the
+  official Strapi namespace is "@strapi/"). The campaign targeted
+  cryptocurrency platforms via hardcoded credential scanning and
+  cryptocurrency wallet extraction, Redis RCE through crontab injection,
+  PostgreSQL credential scanning, PHP web shell and Node.js reverse shell
+  deployment, Docker container escape attempts, and a persistent implant
+  targeting the hostname prod-strapi. The operator used four sock-puppet
+  npm publisher accounts (umarbek1233, kekylf12, tikeqemif26,
+  umar_bektembiev1) and uploaded all 36 packages across a 13-hour window.
+  Vigilant's research on open source CI/CD security risk across the top
+  50,000 GitHub repositories is available at
+  https://www.vigilantdefense.com/research/github-top-50k-repos-cicd-security-scan
+
+signatures:
+  # Package IOCs - 36 malicious Strapi-themed npm packages (all v3.6.8)
+  - id: strapi-crypto-pkg-plugins
+    threat_actor: Strapi-Cryptosteal
+    type: ioc-package
+    pattern: "(?i)strapi-plugin-(cron|config|server|database|core|hooks|monitor|events|logger|health|sync|seed|locale|form|notify|api|sitemap-gen|finseven|hextest|cms-tools|content-sync|debug-tools|health-check|advanced-uuid|blurhash)@3\\.6\\.8\\b"
+    description: "Malicious npm packages masquerading as Strapi CMS plugins (official plugins use the @strapi/ scope), part of the April 2026 cryptocurrency-focused open source supply chain campaign"
+    severity: critical
+    first_seen: "2026-04"
+
+  - id: strapi-crypto-pkg-nordica
+    threat_actor: Strapi-Cryptosteal
+    type: ioc-package
+    pattern: "(?i)strapi-plugin-nordica(-tools|-sync|-cms|-api|-recon|-stage|-vhost|-deep|-lite)?@3\\.6\\.8\\b"
+    description: "Malicious strapi-plugin-nordica* npm packages uploaded by the Strapi-Cryptosteal sock-puppet accounts targeting cryptocurrency platforms"
+    severity: critical
+    first_seen: "2026-04"
+
+  - id: strapi-crypto-pkg-guardarian
+    threat_actor: Strapi-Cryptosteal
+    type: ioc-package
+    pattern: "(?i)strapi-plugin-guardarian-ext@3\\.6\\.8\\b"
+    description: "Malicious strapi-plugin-guardarian-ext npm package exfiltrating Guardarian cryptocurrency exchange API credentials"
+    severity: critical
+    first_seen: "2026-04"
+
+  # Publisher Account IOCs
+  - id: strapi-crypto-sockpuppets
+    threat_actor: Strapi-Cryptosteal
+    type: ioc-variable
+    pattern: "(?i)\\b(umarbek1233|kekylf12|tikeqemif26|umar_bektembiev1)\\b"
+    description: "Sock-puppet npm publisher accounts used by the Strapi-Cryptosteal operator to upload 36 malicious packages within a 13-hour window"
+    severity: critical
+    first_seen: "2026-04"
+
+  # Behavioral IOCs - Redis RCE via crontab injection
+  - id: strapi-crypto-redis-crontab
+    threat_actor: Strapi-Cryptosteal
+    type: ioc-behavior
+    pattern: "(?i)redis-cli.*\\bconfig\\s+set\\b.*\\b(dir|dbfilename)\\b|redis-cli.*crontab|redis.*127\\.0\\.0\\.1:6379.*crontab"
+    description: "Redis RCE via crontab injection, a signature technique of the Strapi-Cryptosteal supply chain campaign targeting unauthenticated Redis on developer and CI/CD hosts"
+    severity: critical
+    first_seen: "2026-04"
+
+  # PostgreSQL credential scanning
+  - id: strapi-crypto-pg-scan
+    threat_actor: Strapi-Cryptosteal
+    type: ioc-behavior
+    pattern: "(?i)(PGPASSWORD|PGUSER).*(wallet|crypto|deposit|transaction|guardarian)"
+    description: "PostgreSQL credential harvesting paired with cryptocurrency keyword scanning, a Strapi-Cryptosteal campaign pattern"
+    severity: critical
+    first_seen: "2026-04"
+
+  # Persistent implant
+  - id: strapi-crypto-implant
+    threat_actor: Strapi-Cryptosteal
+    type: ioc-variable
+    pattern: "(?i)prod-strapi"
+    description: "Persistent implant targeting hostname prod-strapi, a Strapi-Cryptosteal campaign marker in compromised CI/CD and production environments"
+    severity: high
+    first_seen: "2026-04"
+
+  # Reverse shell deployment
+  - id: strapi-crypto-reverse-shell
+    threat_actor: Strapi-Cryptosteal
+    type: ioc-behavior
+    pattern: "(?i)(python|python3).*socket.*(connect|4444).*subprocess|nc\\s+.*\\s+4444\\s+-e"
+    description: "Python reverse shell on port 4444 and shell-deployment patterns used by the Strapi-Cryptosteal open source supply chain campaign"
+    severity: critical
+    first_seen: "2026-04"

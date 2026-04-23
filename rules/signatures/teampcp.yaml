@@ -1,105 +1,258 @@
 version: 1
-last_updated: "2026-04-02"
+last_updated: "2026-04-23"
 campaign: TeamPCP
 description: >
-  TeamPCP (also tracked as DeadCatx3, PCPcat, ShellForce, CipherForce)
-  conducted a multi-stage supply chain campaign in March 2026. They
-  compromised Aqua Security Trivy (March 19), Checkmarx KICS and AST
-  (March 23), BerriAI LiteLLM (March 24), and Telnyx (March 27).
-  The attacks used stolen CI/CD credentials to force-push malicious tags,
-  harvest secrets from runner memory, and exfiltrate encrypted archives.
-  Cisco lost 300+ source code repos as a direct result.
+  TeamPCP (also tracked as DeadCatx3, PCPcat, ShellForce, CipherForce) is a
+  threat actor running a multi-phase open source software supply chain
+  attack campaign against CI/CD pipelines and GitHub Actions workflows.
+  Phases 1-4 (March 2026) compromised Aqua Security Trivy, Checkmarx KICS
+  and AST, BerriAI LiteLLM, and Telnyx by stealing CI/CD credentials,
+  force-pushing malicious git tags, and harvesting secrets from GitHub
+  Actions runner memory. Cisco lost 300+ source code repositories as a
+  direct consequence of the Trivy compromise. Phase 5 (April 2026)
+  introduced CanisterWorm and CanisterSprawl, self-propagating npm
+  supply chain worms that compromise pgserve, @automagik/genie (Namastex
+  Labs), @fairwords/* and @openwebconcept/* packages and use Internet
+  Computer Protocol (ICP) canister dead-drop infrastructure with
+  RSA-4096 encrypted exfiltration. The worm harvests npm publish tokens,
+  enumerates packages the victim can publish, injects malicious
+  postinstall hooks, and republishes with a version bump under the
+  --tag latest flag, creating recursive propagation across the npm
+  ecosystem. If PyPI credentials are present, the same logic propagates
+  via .pth-based Python payloads. Vigilant's research on open source
+  CI/CD security risk across the top 50,000 GitHub repositories is
+  available at
+  https://www.vigilantdefense.com/research/github-top-50k-repos-cicd-security-scan
 
 signatures:
+  # =====================================================
+  # Phases 1-4: Trivy, Checkmarx, LiteLLM, Telnyx (March 2026)
+  # =====================================================
+
   # C2 Domains
   - id: teampcp-c2-aqua-typosquat
     threat_actor: TeamPCP
     type: ioc-domain
     pattern: "(?i)scan\\.aquasecur[ti]iy?\\.org|aquasecur[ti]iy?\\.org"
-    description: "TeamPCP typosquat domain impersonating Aqua Security"
+    description: "TeamPCP typosquat domain impersonating Aqua Security, used in the Trivy open source supply chain compromise (March 2026)"
     severity: critical
     first_seen: "2026-03"
-    references:
-      - "https://www.wiz.io/blog/trivy-compromised-teampcp-supply-chain-attack"
 
   - id: teampcp-c2-checkmarx-typosquat
     threat_actor: TeamPCP
     type: ioc-domain
     pattern: "(?i)checkmarx\\[?\\.]?zone|checkmarx\\.zone"
-    description: "TeamPCP typosquat domain impersonating Checkmarx"
+    description: "TeamPCP typosquat domain impersonating Checkmarx, used in the KICS and AST GitHub Actions supply chain compromise (March 2026)"
     severity: critical
     first_seen: "2026-03"
-    references:
-      - "https://thehackernews.com/2026/03/teampcp-hacks-checkmarx-github-actions.html"
 
   - id: teampcp-c2-litellm
     threat_actor: TeamPCP
     type: ioc-domain
     pattern: "(?i)models\\.litellm\\.cloud"
-    description: "TeamPCP C2 domain used in LiteLLM compromise"
+    description: "TeamPCP C2 domain used in the BerriAI LiteLLM PyPI supply chain compromise (March 2026)"
     severity: critical
     first_seen: "2026-03"
-    references:
-      - "https://www.endorlabs.com/learn/teampcp-isnt-done"
 
   - id: teampcp-c2-telnyx-ip
     threat_actor: TeamPCP
     type: ioc-domain
     pattern: "83\\.142\\.209\\.203"
-    description: "TeamPCP C2 IP address used in Telnyx compromise"
+    description: "TeamPCP C2 IP address used in the Telnyx PyPI supply chain compromise (March 2026)"
     severity: critical
     first_seen: "2026-03"
-    references:
-      - "https://www.akamai.com/blog/security-research/2026/mar/telnyx-pypi-2026-teampcp-supply-chain-attacks"
 
   # Behavioral IOCs
   - id: teampcp-archive-exfil
     threat_actor: TeamPCP
     type: ioc-behavior
     pattern: "(?i)tpcp\\.tar\\.gz|tpcp[-_]?archive|TeamPCP.*Cloud.*[Ss]tealer"
-    description: "TeamPCP encrypted exfiltration archive (tpcp.tar.gz) or stealer identification"
+    description: "TeamPCP encrypted exfiltration archive (tpcp.tar.gz) or stealer identification, observed across the March 2026 supply chain campaign"
     severity: critical
     first_seen: "2026-03"
-    references:
-      - "https://unit42.paloaltonetworks.com/teampcp-supply-chain-attacks/"
 
   - id: teampcp-proc-mem-read
     threat_actor: TeamPCP
     type: ioc-behavior
     pattern: "(?i)/proc/[0-9]+/mem|/proc/self/mem|Runner\\.Worker.*mem|dump.*Runner\\.Worker"
-    description: "Process memory harvesting targeting CI runner worker process"
+    description: "Process memory harvesting targeting the GitHub Actions runner worker, used by TeamPCP to extract secrets from CI/CD pipelines"
     severity: critical
     first_seen: "2026-03"
-    references:
-      - "https://www.wiz.io/blog/trivy-compromised-teampcp-supply-chain-attack"
 
   - id: teampcp-tag-force-push
     threat_actor: TeamPCP
     type: ioc-behavior
     pattern: "(?i)git\\s+tag\\s+-f|git\\s+push\\s+.*--force.*tags|git\\s+push\\s+--tags\\s+--force"
-    description: "Force-pushing git tags (used by TeamPCP to redirect action references to malicious commits)"
+    description: "Force-pushing git tags, used by TeamPCP to redirect mutable GitHub Actions references to malicious commits in the supply chain attack"
     severity: high
     first_seen: "2026-03"
-    references:
-      - "https://www.aquasec.com/blog/trivy-supply-chain-attack-what-you-need-to-know/"
 
   - id: teampcp-github-release-exfil
     threat_actor: TeamPCP
     type: ioc-behavior
     pattern: "(?i)tpcp-docs.*release|gh\\s+release\\s+create.*tpcp"
-    description: "TeamPCP fallback exfiltration via GitHub release assets in victim org"
+    description: "TeamPCP fallback exfiltration via GitHub release assets in the victim organization"
     severity: critical
     first_seen: "2026-03"
-    references:
-      - "https://www.wiz.io/blog/tracking-teampcp-investigating-post-compromise-attacks-seen-in-the-wild"
 
   # Package IOCs
   - id: teampcp-malicious-trivy
     threat_actor: TeamPCP
     type: ioc-package
     pattern: "(?i)trivy@0\\.69\\.4|trivy-action.*malicious|setup-trivy.*compromised"
-    description: "Known compromised Trivy version or references to compromised Trivy actions"
+    description: "Known compromised Trivy version and references to compromised Trivy GitHub Actions from the TeamPCP open source supply chain attack"
     severity: critical
     first_seen: "2026-03"
-    references:
-      - "https://github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23"
+
+  # =====================================================
+  # Phase 5: CanisterWorm / CanisterSprawl (April 2026)
+  # =====================================================
+
+  # Package IOCs - Compromised npm packages carrying the CanisterWorm payload
+  - id: teampcp-pkg-pgserve
+    threat_actor: TeamPCP
+    type: ioc-package
+    pattern: "(?i)\\bpgserve@1\\.1\\.(11|12|13|14)\\b"
+    description: "Compromised pgserve npm package versions carrying the CanisterSprawl self-propagating worm payload"
+    severity: critical
+    first_seen: "2026-04"
+
+  - id: teampcp-pkg-automagik-genie
+    threat_actor: TeamPCP
+    type: ioc-package
+    pattern: "(?i)@automagik/genie@4\\.260421\\.(3[3-9]|40)\\b"
+    description: "Compromised @automagik/genie npm package (Namastex Labs) carrying the CanisterWorm self-propagating supply chain payload"
+    severity: critical
+    first_seen: "2026-04"
+
+  - id: teampcp-pkg-fairwords-websocket
+    threat_actor: TeamPCP
+    type: ioc-package
+    pattern: "(?i)@fairwords/websocket@1\\.0\\.3[89]\\b"
+    description: "Compromised @fairwords/websocket npm package carrying the CanisterWorm self-propagating supply chain payload"
+    severity: critical
+    first_seen: "2026-04"
+
+  - id: teampcp-pkg-fairwords-loopback
+    threat_actor: TeamPCP
+    type: ioc-package
+    pattern: "(?i)@fairwords/loopback-connector-es@1\\.4\\.[34]\\b"
+    description: "Compromised @fairwords/loopback-connector-es npm package carrying the CanisterWorm self-propagating supply chain payload"
+    severity: critical
+    first_seen: "2026-04"
+
+  - id: teampcp-pkg-openwebconcept-design
+    threat_actor: TeamPCP
+    type: ioc-package
+    pattern: "(?i)@openwebconcept/design-tokens@1\\.0\\.[123]\\b"
+    description: "Compromised @openwebconcept/design-tokens design-system npm package carrying the CanisterWorm payload"
+    severity: critical
+    first_seen: "2026-04"
+
+  - id: teampcp-pkg-openwebconcept-theme
+    threat_actor: TeamPCP
+    type: ioc-package
+    pattern: "(?i)@openwebconcept/theme-owc@1\\.0\\.[123]\\b"
+    description: "Compromised @openwebconcept/theme-owc design-system npm package carrying the CanisterWorm payload"
+    severity: critical
+    first_seen: "2026-04"
+
+  # CanisterWorm C2 Domains and Endpoints
+  - id: teampcp-c2-api-monitor
+    threat_actor: TeamPCP
+    type: ioc-domain
+    pattern: "(?i)telemetry\\.api-monitor\\[?\\.]?com|api-monitor\\.com/v1/(telemetry|drop)"
+    description: "CanisterWorm webhook exfiltration domain and endpoints used to harvest developer credentials from open source supply chain compromises"
+    severity: critical
+    first_seen: "2026-04"
+
+  - id: teampcp-c2-icp-canister
+    threat_actor: TeamPCP
+    type: ioc-domain
+    pattern: "(?i)cjn37-uyaaa-aaaac-qgnva-cai"
+    description: "Known CanisterWorm ICP canister ID used as decentralized dead-drop command and control infrastructure, resistant to traditional takedown"
+    severity: critical
+    first_seen: "2026-04"
+
+  - id: teampcp-c2-icp-generic
+    threat_actor: TeamPCP
+    type: ioc-domain
+    pattern: "(?i)[a-z0-9]{5}-[a-z0-9]{5}-[a-z0-9]{5}-[a-z0-9]{5}-[a-z0-9]{3}\\.raw\\.icp0\\.io"
+    description: "Internet Computer Protocol canister endpoint pattern used by CanisterWorm and related supply chain worms for decentralized C2"
+    severity: high
+    first_seen: "2026-04"
+
+  # CanisterWorm File Hashes
+  - id: teampcp-hash-env-compat
+    threat_actor: TeamPCP
+    type: ioc-variable
+    pattern: "c19c4574d09e60636425f9555d3b63e8cb5c9d63ceb1c982c35e5a310c97a839"
+    description: "SHA-256 hash of CanisterWorm credential harvester payload (dist/env-compat.cjs)"
+    severity: critical
+    first_seen: "2026-04"
+
+  - id: teampcp-hash-public-pem
+    threat_actor: TeamPCP
+    type: ioc-variable
+    pattern: "834b6e5db5710b9308d0598978a0148a9dc832361f1fa0b7ad4343dcceba2812"
+    description: "SHA-256 hash of CanisterWorm RSA-4096 public key file (dist/public.pem) used for encrypted exfiltration"
+    severity: critical
+    first_seen: "2026-04"
+
+  - id: teampcp-hash-rsa-fingerprint
+    threat_actor: TeamPCP
+    type: ioc-variable
+    pattern: "87259b0d1d017ad8b8daa7c177c2d9f0940e457f8dd1ab3abab3681e433ca88e"
+    description: "CanisterWorm RSA public key fingerprint (DER SHA-256), consistent across all Phase 5 compromised npm packages"
+    severity: critical
+    first_seen: "2026-04"
+
+  # CanisterWorm File Paths
+  - id: teampcp-filepath-harvester
+    threat_actor: TeamPCP
+    type: ioc-filepath
+    pattern: "(?i)(scripts/check-env\\.(js|cjs)|dist/env-compat\\.cjs)"
+    description: "CanisterWorm credential harvester file paths inside compromised npm packages"
+    severity: critical
+    first_seen: "2026-04"
+
+  - id: teampcp-filepath-public-pem
+    threat_actor: TeamPCP
+    type: ioc-filepath
+    pattern: "(?i)(scripts/public\\.pem|dist/public\\.pem)"
+    description: "CanisterWorm RSA public key file paths inside compromised npm packages"
+    severity: critical
+    first_seen: "2026-04"
+
+  # CanisterWorm Behavioral IOCs
+  - id: teampcp-icp-canister-exfil
+    threat_actor: TeamPCP
+    type: ioc-behavior
+    pattern: "(?i)\\.raw\\.icp0\\.io|icp0\\.io/api/v2/canister"
+    description: "Exfiltration to Internet Computer Protocol canister infrastructure, a decentralized C2 pattern used by CanisterWorm that is resistant to DNS and hosting takedown"
+    severity: critical
+    first_seen: "2026-04"
+
+  - id: teampcp-worm-republish
+    threat_actor: TeamPCP
+    type: ioc-behavior
+    pattern: "(?i)npm\\s+publish.*--tag\\s+latest.*postinstall|registry\\.npmjs\\.org/-/user.*packages.*publish"
+    description: "CanisterWorm self-propagation pattern: enumerate publishable npm packages, inject malicious postinstall hook, and republish with the --tag latest flag to force infection of downstream installs"
+    severity: critical
+    first_seen: "2026-04"
+
+  - id: teampcp-pth-pypi-inject
+    threat_actor: TeamPCP
+    type: ioc-behavior
+    pattern: "(?i)\\.pth\\b.*(twine\\s+upload|pip.*publish)|sitecustomize\\.py.*base64"
+    description: "Python .pth-based payload injection used by CanisterWorm and LiteLLM compromise for cross-ecosystem worm propagation between npm and PyPI"
+    severity: critical
+    first_seen: "2026-04"
+
+  - id: teampcp-rsa-icp-exfil
+    threat_actor: TeamPCP
+    type: ioc-behavior
+    pattern: "(?i)crypto\\.publicEncrypt.*icp0\\.io|RSA[-_]?OAEP.*icp0\\.io|publicEncrypt.*raw\\.icp0|X-Request-Signature.*icp0"
+    description: "RSA-encrypted exfiltration paired with an ICP canister endpoint, a hybrid encryption pattern unique to the CanisterWorm open source supply chain worm"
+    severity: critical
+    first_seen: "2026-04"
