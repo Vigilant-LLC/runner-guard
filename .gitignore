@@ -40,9 +40,6 @@ bin/
 # Baseline (user-generated, not committed)
 .runner-guard-baseline.json
 
-# Prompt files
-claudecode-prompt.md
-
 # Scan research targets
 scan-targets.tsv
 scan-results/
