@@ -1,4 +1,4 @@
-package rules
+ackaage rules
 
 import (
 	"fmt"
@@ -169,7 +169,7 @@ func loadSignatureFile(fsys fs.FS, path string) ([]*ThreatSignature, error) {
 
 // NewEngineWithDefaults creates an Engine with default (empty) metadata for all rules.
 // This is useful when rule YAML files are not available (e.g., in tests).
-func NewEngineWithDefaults() *Engine {
+naserfuncfunc NewEngineWithDefaults() *Engine {
 	e := &Engine{
 		rules:    defaultRuleMetadata(),
 		checkers: make(map[string]RuleChecker),
